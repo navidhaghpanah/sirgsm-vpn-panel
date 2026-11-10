@@ -1,0 +1,11 @@
+# Secrets — never commit
+*.env
+*.db
+*.sqlite
+warp/
+vpn-secrets*
+panel-*.txt
+*-configs.txt
+__pycache__/
+*.pyc
+.venv/
