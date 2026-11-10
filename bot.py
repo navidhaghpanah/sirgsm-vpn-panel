@@ -207,8 +207,8 @@ MENU = {
 HELP = """<b>راهنمای ربات Sirgsm VPN</b>
 
 ➕ <code>/add &lt;email&gt; &lt;protocol&gt; &lt;days&gt; &lt;gb&gt; [ip]</code>
-ساخت کاربر — protocol: <code>vless</code> | <code>trojan</code> | <code>ss</code> | <code>vmess</code>
-مثال: <code>/add ali vless 30 50</code>
+ساخت کاربر — protocol: <code>vless</code> | <code>trojan</code> | <code>ss</code> | <code>vmess</code> | <code>http</code> (چندتایی: <code>vless,trojan</code>)
+مثال: <code>/add ali vless,trojan 30 50</code>
 
 📋 <code>/list</code> — لیست کاربران
 🔗 <code>/links &lt;email&gt;</code> — لینک + QR + ساب
@@ -228,25 +228,27 @@ def handle_add(chat_id, args):
     if len(args) < 4:
         send(chat_id, "❌ فرمت اشتباه.\nمثال: <code>/add ali vless 30 50</code>\nپروتکل: vless | trojan | ss | vmess")
         return
-    email, proto = args[0], args[1]
+    email = args[0]
+    protos = [x.strip() for x in args[1].split(',') if x.strip()]
     try:
         days = int(args[2]); gb = float(args[3])
         ip = int(args[4]) if len(args) > 4 else 0
     except Exception:
         send(chat_id, "❌ days و gb باید عدد باشن.")
         return
-    if proto not in ('vless', 'trojan', 'ss', 'vmess'):
-        send(chat_id, "❌ پروتکل نامعتبر. vless | trojan | ss | vmess")
+    valid = ('vless', 'trojan', 'ss', 'vmess', 'http')
+    if not protos or any(x not in valid for x in protos):
+        send(chat_id, "❌ پروتکل نامعتبر. vless | trojan | ss | vmess | http (چندتایی با کاما: vless,trojan)")
         return
     send(chat_id, "⏳ در حال ساخت...")
     data, err = panel_api('/api/clients', method='POST', body={
-        'email': email, 'inbound': proto, 'traffic_gb': gb,
+        'email': email, 'inbounds': protos, 'traffic_gb': gb,
         'expiry_days': days, 'ip_limit': ip, 'note': 'via bot'})
     if err or not data:
         send(chat_id, f"❌ خطا: {err or 'نامشخص'}")
         return
     links = data.get('links', [])
-    txt = f"✅ کاربر <b>{email}</b> ({proto}) ساخته شد.\n"
+    txt = f"✅ کاربر <b>{email}</b> ({','.join(protos)}) ساخته شد.\n"
     txt += f"⏳ {days} روز | 📦 {gb} گیگ | 🌐 IP: {ip or 'نامحدود'}\n\n"
     for i, l in enumerate(links):
         txt += f"<code>{l}</code>\n\n"

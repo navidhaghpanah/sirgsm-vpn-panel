@@ -50,7 +50,7 @@ DOMAIN = 'nhv.3tayesh.ir'
 SERVER_IP = '185.204.169.123'
 PANEL_NAME = 'Sirgsm VPN Panel'
 SPONSOR = 'Sirgsm.ir'
-PANEL_VERSION = '3.2.0'
+PANEL_VERSION = '3.3.0'
 GITHUB_REPO = 'sirgsm/sirgsm-vpn-panel'  # default, overridable in settings (update_repo)
 
 # Load base secrets (VLESS existing + Trojan keys)
@@ -133,6 +133,7 @@ INBOUNDS_META = {
     'trojan': {'port': 8443, 'protocol': 'trojan', 'remark': 'Trojan', 'fa': 'تروجان'},
     'ss': {'port': 8388, 'protocol': 'shadowsocks', 'remark': 'Shadowsocks 2022', 'fa': 'شدوساکس ۲۰۲۲'},
     'vmess': {'port': 2096, 'protocol': 'vmess', 'remark': 'VMess', 'fa': 'وی‌مس'},
+    'http': {'port': 8080, 'protocol': 'http', 'remark': 'HTTP Proxy', 'fa': 'پروکسی HTTP'},
 }
 
 # Transport choices per inbound (most-used types). id -> (label, network, security)
@@ -162,6 +163,9 @@ INBOUND_TRANSPORTS = {
     },
     'ss': {
         'tcp': ('TCP/UDP', 'tcp', 'none'),
+    },
+    'http': {
+        'tcp': ('TCP', 'tcp', 'none'),
     },
 }
 WS_PATHS = {'vless': '/sirgsm-vless', 'trojan': '/sirgsm-trojan', 'vmess': '/sirgsm-vmess'}
@@ -197,12 +201,17 @@ SETTINGS_DEFAULTS = {
     'transport_trojan': 'reality-tcp',
     'transport_vmess': 'reality-tcp',
     'transport_ss': 'tcp',
+    'transport_http': 'tcp',
     'update_repo': GITHUB_REPO,
     'ssl_email': '',
     'ssl_enabled': '0',
     'backup_enabled': '1',
     'backup_interval_hours': '24',
     'backup_last': '0',
+    'mtproxy_enabled': '0',
+    'mtproxy_secret': '',
+    'mtproxy_port': '9443',
+    'ikev2_enabled': '0',
 }
 
 def get_setting(key, default=None):
@@ -302,6 +311,33 @@ def init_db():
             con.execute("ALTER TABLE clients ADD COLUMN ip_limit INTEGER DEFAULT 0")
         if 'last_online' not in cols:
             con.execute("ALTER TABLE clients ADD COLUMN last_online INTEGER DEFAULT 0")
+        # Multi-protocol: allow same email for multiple inbounds (UNIQUE(email, inbound))
+        schema = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='clients'").fetchone()
+        if schema and 'email TEXT UNIQUE' in (schema[0] or ''):
+            con.executescript("""
+            CREATE TABLE clients_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                inbound TEXT NOT NULL,
+                uuid TEXT,
+                password TEXT,
+                traffic_limit INTEGER DEFAULT 0,
+                expiry INTEGER DEFAULT 0,
+                ip_limit INTEGER DEFAULT 0,
+                enable INTEGER DEFAULT 1,
+                up INTEGER DEFAULT 0,
+                down INTEGER DEFAULT 0,
+                last_up INTEGER DEFAULT 0,
+                last_down INTEGER DEFAULT 0,
+                last_online INTEGER DEFAULT 0,
+                created INTEGER DEFAULT 0,
+                note TEXT DEFAULT '',
+                UNIQUE(email, inbound)
+            );
+            INSERT INTO clients_new SELECT * FROM clients;
+            DROP TABLE clients;
+            ALTER TABLE clients_new RENAME TO clients;
+            """)
         con.commit()
     except Exception:
         pass
@@ -397,7 +433,7 @@ def build_xray_config():
     routes = con.execute("SELECT * FROM routing WHERE enable=1 ORDER BY sort, id").fetchall()
     con.close()
 
-    by_inbound = {'vless': [], 'trojan': [], 'ss': [], 'vmess': []}
+    by_inbound = {'vless': [], 'trojan': [], 'ss': [], 'vmess': [], 'http': []}
     for c in clients:
         if c['inbound'] in by_inbound:
             by_inbound[c['inbound']].append(c)
@@ -418,6 +454,8 @@ def build_xray_config():
                   for c in by_inbound['ss'] if c['password']]
     vmess_clients = [{"id": c['uuid'], "alterId": 0, "email": c['email']}
                      for c in by_inbound['vmess'] if c['uuid']]
+    http_accounts = [{"user": c['email'], "pass": c['password']}
+                     for c in by_inbound['http'] if c['password']]
 
     inbounds = [
         {
@@ -462,6 +500,16 @@ def build_xray_config():
             "streamSettings": build_stream('vmess'),
             "sniffing": {"enabled": True, "destOverride": ["http", "tls", "quic"]},
             "tag": "vmess-in",
+        },
+        {
+            "port": 8080,
+            "protocol": "http",
+            "settings": {
+                "auth": "password",
+                "accounts": http_accounts,
+                "allowTransparent": False,
+            },
+            "tag": "http-in",
         },
     ]
 
@@ -578,21 +626,28 @@ def sync_stats_and_enforce():
     con = db()
     changed = False
     now = int(time.time())
-    rows = con.execute("SELECT * FROM clients").fetchall()
+    rows = con.execute("SELECT * FROM clients ORDER BY id").fetchall()
+    seen_emails = set()
     for c in rows:
         email = c['email']
         if email in stats:
             up, down = stats[email]
-            last_up = c['last_up'] or 0
-            last_down = c['last_down'] or 0
-            # Delta since last poll; if Xray restarted, counter < last -> delta is current value
-            d_up = (up - last_up) if up >= last_up else up
-            d_down = (down - last_down) if down >= last_down else down
-            new_up = (c['up'] or 0) + d_up
-            new_down = (c['down'] or 0) + d_down
-            con.execute("UPDATE clients SET up=?, down=?, last_up=?, last_down=? WHERE id=?",
-                        (new_up, new_down, up, down, c['id']))
-        # Enforce limits
+            if email not in seen_emails:
+                # First row for this email counts traffic (stats are per-email globally)
+                seen_emails.add(email)
+                last_up = c['last_up'] or 0
+                last_down = c['last_down'] or 0
+                d_up = (up - last_up) if up >= last_up else up
+                d_down = (down - last_down) if down >= last_down else down
+                new_up = (c['up'] or 0) + d_up
+                new_down = (c['down'] or 0) + d_down
+                con.execute("UPDATE clients SET up=?, down=?, last_up=?, last_down=? WHERE id=?",
+                            (new_up, new_down, up, down, c['id']))
+            else:
+                # Other protocol rows for same email: sync last_* only (no double-count)
+                con.execute("UPDATE clients SET last_up=?, last_down=? WHERE id=?",
+                            (up, down, c['id']))
+        # Enforce limits (use first-row total; disable ALL rows for email)
         total = (c['up'] or 0) + (c['down'] or 0)
         over = False
         if c['traffic_limit'] and c['traffic_limit'] > 0 and total >= c['traffic_limit']:
@@ -600,7 +655,7 @@ def sync_stats_and_enforce():
         if c['expiry'] and c['expiry'] > 0 and now >= c['expiry']:
             over = True
         if over and c['enable'] == 1:
-            con.execute("UPDATE clients SET enable=0 WHERE id=?", (c['id'],))
+            con.execute("UPDATE clients SET enable=0 WHERE email=?", (email,))
             changed = True
     con.commit()
     con.close()
@@ -750,6 +805,10 @@ def gen_links(c):
         b64 = base64.b64encode(raw.encode()).decode()
         links.append(f"ss://{b64}@{SERVER_IP}:8388#{email}")
         links.append(f"ss://{b64}@{domain}:8388#{email}")
+        return links
+    if inbound == 'http':
+        links.append(f"http://{email}:{c['password']}@{SERVER_IP}:8080#{email}")
+        links.append(f"http://{email}:{c['password']}@{domain}:8080#{email}")
         return links
     tid = get_transport(inbound)
     label, network, security = INBOUND_TRANSPORTS[inbound][tid]
@@ -974,15 +1033,33 @@ def api_clients():
         else:
             rows = con.execute("SELECT * FROM clients ORDER BY id").fetchall()
         online = query_online_users()
-        out = []
+        # Group by email (multi-protocol: one entry per user, all protocols)
+        groups = {}
+        order = []
         for c in rows:
-            d = dict(c)
-            d['total'] = (d['up'] or 0) + (d['down'] or 0)
-            d['links'] = gen_links(c)
-            d['sub'] = sub_url(c)
-            d['online'] = online.get(c['email'], 0)
-            # Status: enabled/disabled/expired/over-limit
-            now = int(time.time())
+            em = c['email']
+            if em not in groups:
+                groups[em] = []
+                order.append(em)
+            groups[em].append(c)
+        out = []
+        now = int(time.time())
+        for em in order:
+            rs = groups[em]
+            first = rs[0]
+            d = dict(first)
+            # Traffic: sum (only first row counts, others 0 — see sync)
+            d['total'] = sum((r['up'] or 0) + (r['down'] or 0) for r in rs)
+            d['up'] = sum((r['up'] or 0) for r in rs)
+            d['down'] = sum((r['down'] or 0) for r in rs)
+            d['links'] = []
+            for r in rs:
+                d['links'].extend(gen_links(r))
+            d['sub'] = sub_url(first)
+            d['online'] = online.get(em, 0)
+            d['inbounds'] = [r['inbound'] for r in rs]
+            d['ids'] = [r['id'] for r in rs]
+            d['inbound'] = rs[0]['inbound']  # primary (for filters/legacy)
             total = d['total']
             if not d['enable']:
                 d['status'] = 'disabled'
@@ -995,49 +1072,63 @@ def api_clients():
             out.append(d)
         con.close()
         return jsonify(out)
-    # POST create
+    # POST create (single inbound OR multi via inbounds list)
     data = request.get_json(force=True)
     email = (data.get('email') or '').strip()
-    inbound = data.get('inbound', 'vless')
-    if not email or inbound not in INBOUNDS_META:
+    inbounds = data.get('inbounds') or [data.get('inbound', 'vless')]
+    if isinstance(inbounds, str):
+        inbounds = [inbounds]
+    inbounds = [i for i in inbounds if i in INBOUNDS_META]
+    if not email or not inbounds:
         con.close()
         return jsonify({'error': 'ایمیل و پروتکل معتبر نیست'}), 400
-    if con.execute("SELECT id FROM clients WHERE email=?", (email,)).fetchone():
-        con.close()
-        return jsonify({'error': 'این ایمیل قبلاً وجود دارد'}), 400
     traffic_gb = float(data.get('traffic_gb') or 0)
     traffic_limit = int(traffic_gb * 1024 * 1024 * 1024) if traffic_gb > 0 else 0
     expiry_days = int(data.get('expiry_days') or 0)
     expiry = int(time.time() + expiry_days * 86400) if expiry_days > 0 else 0
     note = (data.get('note') or '').strip()
     now = int(time.time())
-    if inbound == 'vless':
-        uid = str(uuid.uuid4())
-        pw = ''
-    elif inbound == 'trojan':
-        uid = ''
-        pw = secrets.token_urlsafe(12)[:16]
-    elif inbound == 'vmess':
-        uid = str(uuid.uuid4())
-        pw = ''
-    else:
-        uid = ''
-        pw = base64.b64encode(os.urandom(16)).decode()
     ip_limit = int(data.get('ip_limit') or 0)
-    cur = con.execute("INSERT INTO clients(email,inbound,uuid,password,traffic_limit,expiry,ip_limit,enable,created,note) VALUES(?,?,?,?,?,?,?,1,?,?)",
-                      (email, inbound, uid, pw, traffic_limit, expiry, ip_limit, now, note))
-    cid = cur.lastrowid
+    created_rows = []
+    for inbound in inbounds:
+        if con.execute("SELECT id FROM clients WHERE email=? AND inbound=?", (email, inbound)).fetchone():
+            continue  # skip existing protocol for this email
+        if inbound in ('vless', 'vmess'):
+            uid = str(uuid.uuid4())
+            pw = ''
+        elif inbound == 'trojan':
+            uid = ''
+            pw = secrets.token_urlsafe(12)[:16]
+        elif inbound == 'http':
+            uid = ''
+            pw = secrets.token_urlsafe(12)[:16]
+        else:  # ss
+            uid = ''
+            pw = base64.b64encode(os.urandom(16)).decode()
+        cur = con.execute("INSERT INTO clients(email,inbound,uuid,password,traffic_limit,expiry,ip_limit,enable,created,note) VALUES(?,?,?,?,?,?,?,1,?,?)",
+                          (email, inbound, uid, pw, traffic_limit, expiry, ip_limit, now, note))
+        created_rows.append(cur.lastrowid)
+    if not created_rows:
+        con.close()
+        return jsonify({'error': 'این ایمیل برای این پروتکل‌ها قبلاً وجود دارد'}), 400
     con.commit()
-    row = con.execute("SELECT * FROM clients WHERE id=?", (cid,)).fetchone()
+    rows = con.execute(f"SELECT * FROM clients WHERE id IN ({','.join('?' for _ in created_rows)})", created_rows).fetchall()
     con.close()
     try:
         build_xray_config()
         restart_xray()
     except Exception as e:
         return jsonify({'error': f'کاربر ساخته شد ولی Xray restart نشد: {e}'}), 500
-    d = dict(row)
+    # Return grouped (all links for email)
+    all_links = []
+    for r in rows:
+        all_links.extend(gen_links(r))
+    d = dict(rows[0])
     d['total'] = (d['up'] or 0) + (d['down'] or 0)
-    d['links'] = gen_links(row)
+    d['links'] = all_links
+    d['inbounds'] = [r['inbound'] for r in rows]
+    d['ids'] = [r['id'] for r in rows]
+    d['sub'] = sub_url(rows[0])
     return jsonify(d), 201
 
 @app.route(f'/{SECRET_PATH}/api/clients/<int:cid>', methods=['PUT', 'DELETE'])
@@ -1262,7 +1353,8 @@ def api_settings():
     # Side effects
     need_xray = any(k.startswith('transport_') or k == 'panel_domain' for k in changed)
     need_bot = any(k in ('bot_token', 'bot_admin_id', 'bot_enabled') for k in changed)
-    need_l2tp = any(k in ('l2tp_enabled', 'l2tp_secret') for k in changed)
+    need_l2tp = any(k in ('l2tp_enabled', 'l2tp_secret', 'ikev2_enabled') for k in changed)
+    need_mtproxy = any(k in ('mtproxy_enabled', 'mtproxy_secret', 'mtproxy_port') for k in changed)
     msg = []
     if need_xray:
         try:
@@ -1283,6 +1375,12 @@ def api_settings():
             msg.append('l2tp applied')
         except Exception as e:
             return jsonify({'error': f'L2TP apply failed: {e}'}), 500
+    if need_mtproxy:
+        try:
+            apply_mtproxy()
+            msg.append('mtproxy applied')
+        except Exception as e:
+            return jsonify({'error': f'MTProxy apply failed: {e}'}), 500
     return jsonify({'ok': True, 'changed': changed, 'msg': msg})
 
 @app.route(f'/{SECRET_PATH}/api/restart-panel', methods=['POST'])
@@ -1448,6 +1546,23 @@ conn L2TP-PSK
     rightprotoport=17/%any
     forceencaps=yes
     type=transport
+    auto=add
+""")
+    if get_setting('ikev2_enabled', '0') == '1':
+        with open('/etc/ipsec.conf', 'a') as f:
+            f.write(f"""
+conn IKEv2-PSK
+    keyexchange=ikev2
+    authby=secret
+    left=%defaultroute
+    leftid={domain}
+    right=%any
+    rightauth=psk
+    ike=aes256-sha256-modp2048,aes256-sha1-modp2048!
+    esp=aes256-sha256,aes256-sha1!
+    dpdaction=clear
+    dpdtimeout=120s
+    dpdinterval=30s
     auto=add
 """)
     with open('/etc/ipsec.secrets', 'w') as f:
@@ -1815,6 +1930,115 @@ def api_users_import():
         return jsonify({'error': f'ایمپورت شد ولی Xray restart نشد: {e}', 'created': created, 'skipped': skipped}), 500
     return jsonify({'ok': True, 'created': created, 'skipped': skipped})
 
+# ---------------- MTProxy (Telegram) ----------------
+MTG_BIN = '/usr/local/bin/mtg'
+
+def mtproxy_link():
+    secret = get_setting('mtproxy_secret', '')
+    port = get_setting('mtproxy_port', '9443')
+    if not secret:
+        return ''
+    # Telegram links use hex secret; mtg uses base64url. Convert if needed.
+    hex_secret = secret
+    try:
+        import base64 as _b64
+        s = secret.strip()
+        # base64url secrets contain -/_ or are longer; hex is [0-9a-f] only
+        if any(c in s for c in '-_') or len(s) % 4 == 0 and not all(c in '0123456789abcdefABCDEF' for c in s):
+            raw = _b64.urlsafe_b64decode(s + '=' * (-len(s) % 4))
+            hex_secret = raw.hex()
+    except Exception:
+        pass
+    return f'mtproto://{get_domain()}:{port}?secret={hex_secret}'
+
+def gen_mtproxy_secret():
+    # Prefer mtg binary (correct fake-TLS format with hostname)
+    if os.path.exists(MTG_BIN):
+        try:
+            r = subprocess.run([MTG_BIN, 'generate-secret', 'www.google.com'],
+                               capture_output=True, text=True, timeout=10)
+            s = r.stdout.strip().splitlines()[0].strip()
+            if s:
+                return s
+        except Exception:
+            pass
+    # Fallback: ee + 16 random bytes + hostname, base64url
+    import base64 as _b64
+    raw = b'\xee' + os.urandom(16) + b'www.google.com'
+    return _b64.urlsafe_b64encode(raw).decode().rstrip('=')
+
+def apply_mtproxy():
+    enabled = get_setting('mtproxy_enabled', '0') == '1'
+    secret = get_setting('mtproxy_secret', '')
+    port = get_setting('mtproxy_port', '9443')
+    if not enabled:
+        subprocess.run(['systemctl', 'stop', 'mtproxy'], timeout=15)
+        return {'enabled': False}
+    if not secret:
+        raise Exception('MTProxy secret is empty')
+    # Install mtg if needed (tar.gz from GitHub releases)
+    if not os.path.exists(MTG_BIN):
+        import urllib.request as _u
+        import tarfile
+        url = 'https://github.com/9seconds/mtg/releases/download/v2.3.0/mtg-2.3.0-linux-amd64.tar.gz'
+        tmp = '/tmp/mtg.tar.gz'
+        _u.urlretrieve(url, tmp)
+        with tarfile.open(tmp) as tf:
+            for m in tf.getmembers():
+                if os.path.basename(m.name) == 'mtg':
+                    tf.extract(m, '/tmp')
+                    shutil.copy(os.path.join('/tmp', m.name), MTG_BIN)
+                    break
+        os.chmod(MTG_BIN, 0o755)
+    # Service
+    with open('/etc/systemd/system/mtproxy.service', 'w') as f:
+        f.write(f"""[Unit]
+Description=MTProxy (Telegram) via mtg
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart={MTG_BIN} simple-run 0.0.0.0:{port} {secret}
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+""")
+    subprocess.run(['systemctl', 'daemon-reload'], timeout=15)
+    subprocess.run(['systemctl', 'enable', 'mtproxy'], timeout=15)
+    subprocess.run(['systemctl', 'restart', 'mtproxy'], timeout=30)
+    subprocess.run(['ufw', 'allow', f'{port}/tcp'], timeout=15)
+    return {'enabled': True, 'port': port}
+
+@app.route(f'/{SECRET_PATH}/api/mtproxy', methods=['GET', 'POST'])
+@login_required
+def api_mtproxy():
+    if request.method == 'GET':
+        try:
+            r = subprocess.run(['systemctl', 'is-active', 'mtproxy'], capture_output=True, text=True, timeout=5)
+            status = r.stdout.strip()
+        except Exception:
+            status = 'unknown'
+        return jsonify({'enabled': get_setting('mtproxy_enabled', '0') == '1',
+                        'secret_set': bool(get_setting('mtproxy_secret', '')),
+                        'port': get_setting('mtproxy_port', '9443'),
+                        'status': status, 'link': mtproxy_link()})
+    data = request.get_json(force=True)
+    if data.get('action') == 'generate':
+        s = gen_mtproxy_secret()
+        set_setting('mtproxy_secret', s)
+        return jsonify({'ok': True, 'secret': s, 'link': mtproxy_link()})
+    for k in ('mtproxy_enabled', 'mtproxy_secret', 'mtproxy_port'):
+        if k in data:
+            set_setting(k, data[k])
+    try:
+        apply_mtproxy()
+    except Exception as e:
+        return jsonify({'error': f'MTProxy apply failed: {e}'}), 500
+    return jsonify({'ok': True, 'link': mtproxy_link()})
+
 @app.route(f'/{SECRET_PATH}/api/clients/bulk', methods=['POST'])
 @login_required
 def api_clients_bulk():
@@ -2005,10 +2229,15 @@ def is_browser_ua(ua):
 def subscription(uid):
     con = db()
     row = con.execute("SELECT * FROM clients WHERE uuid=? OR password=?", (uid, uid)).fetchone()
-    con.close()
     if not row:
+        con.close()
         return 'Not found', 404
-    links = gen_links(row)
+    # Multi-protocol: all rows for this email
+    rows = con.execute("SELECT * FROM clients WHERE email=? ORDER BY id", (row['email'],)).fetchall()
+    con.close()
+    links = []
+    for r in rows:
+        links.extend(gen_links(r))
     raw = request.path.endswith('/raw') or request.args.get('raw') == '1'
     if raw or not is_browser_ua(request.headers.get('User-Agent', '')):
         return '\n'.join(links), 200, {'Content-Type': 'text/plain; charset=utf-8'}
@@ -2171,7 +2400,7 @@ pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;pa
 <div class="row" style="margin:0 0 12px">
 <select id="fInbound" onchange="loadClients()" style="max-width:220px">
 <option value="">همه پروتکل‌ها</option><option value="vless">VLESS Reality (443)</option>
-<option value="trojan">Trojan Reality (8443)</option><option value="ss">Shadowsocks 2022 (8388)</option><option value="vmess">VMess Reality (2096)</option></select>
+<option value="trojan">Trojan Reality (8443)</option><option value="ss">Shadowsocks 2022 (8388)</option><option value="vmess">VMess Reality (2096)</option><option value="http">HTTP Proxy (8080)</option></select>
 <input id="fSearch" placeholder="جستجو ایمیل..." oninput="loadClients()" style="max-width:260px">
 <div style="flex:1"></div>
 <button class="btn" onclick="exportUsers('sirgsm')">⬇ خروجی (Sirgsm)</button>
@@ -2247,6 +2476,7 @@ pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;pa
 <label>Trojan</label><select id="sTrTrojan"></select>
 <label>VMess</label><select id="sTrVmess"></select>
 <label>Shadowsocks</label><select id="sTrSs"></select>
+<label>HTTP Proxy</label><select id="sTrHttp"></select>
 <div class="row"><button class="btn primary" onclick="saveTransports()">ذخیره (بازسازی Xray)</button></div>
 <p class="hint">برای TLS باید اول SSL گرفته باشی. Reality نیازی به گواهی نداره.</p></div>
 <div class="card"><h3 style="margin-top:0">🖼 لندینگ‌پیج اشتراک</h3>
@@ -2258,6 +2488,7 @@ pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;pa
 <div class="row"><button class="btn primary" onclick="saveLanding()">ذخیره</button></div></div>
 <div class="card"><h3 style="margin-top:0">📡 L2TP / IKEv2</h3>
 <label><input type="checkbox" id="sL2tpEnabled"> L2TP فعال</label>
+<label><input type="checkbox" id="sIkev2Enabled"> IKEv2 (PSK) فعال</label>
 <label>PSK / Secret (IPsec)</label><input id="sL2tpSecret" dir="ltr">
 <div class="row"><button class="btn primary" onclick="saveL2tp()">ذخیره و اعمال</button></div>
 <p class="hint" id="l2tpState">...</p>
@@ -2265,7 +2496,15 @@ pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;pa
 <div class="row"><input id="l2tpUser" placeholder="نام کاربری" style="max-width:150px"><input id="l2tpPass" placeholder="رمز" style="max-width:150px">
 <button class="btn sm primary" onclick="addL2tp()">+ افزودن</button></div>
 <div id="l2tpList" style="margin-top:10px"></div>
-<p class="hint">سرور: <span class="mono" id="l2tpServer"></span> | نوع: L2TP/IPsec (PSK) | پورت‌ها: UDP 500/4500/1701</p></div>
+<p class="hint">سرور: <span class="mono" id="l2tpServer"></span> | نوع: L2TP/IPsec (PSK) + IKEv2 (PSK) | پورت‌ها: UDP 500/4500/1701</p></div>
+<div class="card"><h3 style="margin-top:0">✈️ MTProxy (تلگرام)</h3>
+<label><input type="checkbox" id="sMtEnabled"> MTProxy فعال</label>
+<label>Secret (hex — خالی = خودکار ساخته می‌شه)</label><input id="sMtSecret" dir="ltr" placeholder="ee...">
+<label>پورت</label><input id="sMtPort" type="number" dir="ltr" value="9443">
+<div class="row"><button class="btn primary" onclick="saveMtproxy()">ذخیره و اعمال</button>
+<button class="btn" onclick="genMtSecret()">🎲 ساخت Secret</button></div>
+<p class="hint" id="mtState">...</p>
+<p class="hint">لینک: <span class="mono" id="mtLink" style="word-break:break-all"></span></p></div>
 <div class="card"><h3 style="margin-top:0">💾 بکاپ و ریستور</h3>
 <label><input type="checkbox" id="sBackupEnabled" onchange="saveBackupSettings()"> بکاپ خودکار (هر ۲۴ ساعت به ربات تلگرام)</label>
 <label>بازه (ساعت)</label><input id="sBackupHours" type="number" min="1" dir="ltr" onchange="saveBackupSettings()">
@@ -2337,9 +2576,10 @@ async function loadClients(){
   const lim=c.traffic_limit?fmtB(c.traffic_limit):'نامحدود';
   const stMap={active:['فعال',''],disabled:['غیرفعال','off'],expired:['منقضی','off'],overlimit:['پر شده','off']};
   const st=stMap[c.status]||stMap.active;
-  const protoMap={vless:'VLESS',trojan:'Trojan',ss:'SS',vmess:'VMess'};
+  const protoMap={vless:'VLESS',trojan:'Trojan',ss:'SS',vmess:'VMess',http:'HTTP'};
+  const badges=(c.inbounds||[c.inbound]).map(i=>`<span class="pill" style="margin:2px">${protoMap[i]||i}</span>`).join('');
   return `<tr><td><input type="checkbox" class="selRow" value="${c.id}" onchange="updateBulk()"></td><td><b>${c.email}</b><br><small style="color:#8ea0bd">${c.note||''}</small></td>
-  <td>${protoMap[c.inbound]||c.inbound}</td>
+  <td>${badges}</td>
   <td style="min-width:150px">${fmtB(c.total)} / ${lim}<div class="bar"><i style="width:${pct}%"></i></div><small>↑${fmtB(c.up)} ↓${fmtB(c.down)}</small></td>
   <td>${exp}<br><small style="color:#8ea0bd">IP: ${c.ip_limit||'∞'}</small></td>
   <td>${c.online?('🟢 '+c.online):'⚪ 0'}</td>
@@ -2358,13 +2598,21 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 function openAdd(){openModal(`<h2>کاربر جدید</h2>
 <label>ایمیل (نام کاربر)</label><input id="mEmail" placeholder="مثلاً: ali">
-<label>پروتکل</label><select id="mInbound"><option value="vless">VLESS Reality (443)</option><option value="trojan">Trojan Reality (8443)</option><option value="ss">Shadowsocks 2022 (8388)</option><option value="vmess">VMess Reality (2096)</option></select>
+<label>پروتکل‌ها (چندتایی انتخاب کن — برای یک کاربر همه پروتکل‌ها ساخته می‌شن)</label>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin:6px 0">
+<label style="margin:0"><input type="checkbox" class="mProto" value="vless" checked> VLESS (443)</label>
+<label style="margin:0"><input type="checkbox" class="mProto" value="trojan"> Trojan (8443)</label>
+<label style="margin:0"><input type="checkbox" class="mProto" value="ss"> Shadowsocks (8388)</label>
+<label style="margin:0"><input type="checkbox" class="mProto" value="vmess"> VMess (2096)</label>
+<label style="margin:0"><input type="checkbox" class="mProto" value="http"> HTTP Proxy (8080)</label></div>
 <label>سقف حجم (گیگابایت) — ۰ نامحدود</label><input id="mTraffic" type="number" min="0" step="0.5" value="0">
 <label>مدت (روز) — ۰ بدون انقضا</label><input id="mExpiry" type="number" min="0" value="0">
 <label>سقف IP همزمان — ۰ نامحدود</label><input id="mIp" type="number" min="0" value="0">
 <label>یادداشت</label><input id="mNote">
 <div class="row"><button class="btn primary" onclick="saveAdd()">ساخت</button><button class="btn" onclick="closeModal()">انصراف</button></div>`);}
-async function saveAdd(){const b={email:document.getElementById('mEmail').value.trim(),inbound:document.getElementById('mInbound').value,
+async function saveAdd(){const protos=[...document.querySelectorAll('.mProto:checked')].map(x=>x.value);
+if(!protos.length)return toast('حداقل یک پروتکل انتخاب کن');
+const b={email:document.getElementById('mEmail').value.trim(),inbounds:protos,
 traffic_gb:+document.getElementById('mTraffic').value||0,expiry_days:+document.getElementById('mExpiry').value||0,ip_limit:+document.getElementById('mIp').value||0,note:document.getElementById('mNote').value.trim()};
 try{const c=await api('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
 closeModal();toast('کاربر ساخته شد');loadClients();showLinks(c);}catch(e){toast(e.message);}}
@@ -2379,11 +2627,12 @@ openModal(`<h2>ویرایش ${c.email}</h2>
 <p class="hint">برای تمدید، مدت جدید از الان حساب می‌شه. برای بدون انقضا ۰ بذار.</p>`);}
 async function saveEdit(id){const b={email:document.getElementById('eEmail').value.trim(),traffic_gb:+document.getElementById('eTraffic').value||0,
 expiry_days:+document.getElementById('eExpiry').value||0,ip_limit:+document.getElementById('eIp').value||0,note:document.getElementById('eNote').value.trim()};
-try{await api('/api/clients/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+try{for(const i of await clientIds(id)){await api('/api/clients/'+i,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});}
 closeModal();toast('ذخیره شد');loadClients();}catch(e){toast(e.message);}}
-async function toggleClient(id,en){try{await api('/api/clients/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enable:en})});toast('انجام شد');loadClients();}catch(e){toast(e.message);}}
-async function resetClient(id){if(!confirm('مصرف این کاربر صفر بشه؟'))return;try{await api('/api/clients/'+id+'/reset',{method:'POST'});toast('ریست شد');loadClients();}catch(e){toast(e.message);}}
-async function delClient(id){if(!confirm('حذف بشه؟'))return;try{await api('/api/clients/'+id,{method:'DELETE'});toast('حذف شد');loadClients();}catch(e){toast(e.message);}}
+async function clientIds(id){const c=(window._clients||[]).find(x=>x.id===id);return (c&&c.ids)?c.ids:[id];}
+async function toggleClient(id,en){try{for(const i of await clientIds(id)){await api('/api/clients/'+i,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enable:en})});}toast('انجام شد');loadClients();}catch(e){toast(e.message);}}
+async function resetClient(id){if(!confirm('مصرف این کاربر صفر بشه؟'))return;try{for(const i of await clientIds(id)){await api('/api/clients/'+i+'/reset',{method:'POST'});}toast('ریست شد');loadClients();}catch(e){toast(e.message);}}
+async function delClient(id){if(!confirm('حذف بشه؟ (همه پروتکل‌ها)'))return;try{for(const i of await clientIds(id)){await api('/api/clients/'+i,{method:'DELETE'});}toast('حذف شد');loadClients();}catch(e){toast(e.message);}}
 function showLinks(c){openModal(`<h2>لینک‌های ${c.email}</h2>
 ${(c.links||[]).map((l,i)=>`<label>لینک ${i+1}</label><textarea rows="3" readonly class="mono">${l}</textarea>`).join('')}
 <label>لینک اشتراک (Sub)</label><textarea rows="2" readonly class="mono">${c.sub||''}</textarea>
@@ -2427,6 +2676,11 @@ document.getElementById('sLandSub').value=s.landing_subtitle||'';
 document.getElementById('sLandFoot').value=s.landing_footer||'';
 document.getElementById('sLandTpl').value=s.landing_template||'';
 document.getElementById('sL2tpEnabled').checked=s.l2tp_enabled==='1';
+document.getElementById('sIkev2Enabled').checked=s.ikev2_enabled==='1';
+document.getElementById('sMtEnabled').checked=s.mtproxy_enabled==='1';
+document.getElementById('sMtSecret').value=s.mtproxy_secret||'';
+document.getElementById('sMtPort').value=s.mtproxy_port||9443;
+loadMtproxy();
 document.getElementById('sL2tpSecret').value=s.l2tp_secret||'';
 document.getElementById('sUpdRepo').value=s.update_repo||'';
 document.getElementById('sBackupEnabled').checked=s.backup_enabled==='1';
@@ -2438,7 +2692,7 @@ document.getElementById('updRepo').textContent=s.update_repo||'';
 const fill=(id,ib,cur)=>{const el=document.getElementById(id);const ch=(s.transports||{})[ib]||{};
 el.innerHTML=Object.entries(ch).map(([k,v])=>`<option value="${k}" ${k===cur?'selected':''}>${v}</option>`).join('');};
 fill('sTrVless','vless',s.transport_vless);fill('sTrTrojan','trojan',s.transport_trojan);
-fill('sTrVmess','vmess',s.transport_vmess);fill('sTrSs','ss',s.transport_ss);
+fill('sTrVmess','vmess',s.transport_vmess);fill('sTrSs','ss',s.transport_ss);fill('sTrHttp','http',s.transport_http);
 loadL2tp();}
 async function saveSettingsPatch(b){return api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});}
 async function saveDomain(){try{await saveSettingsPatch({panel_domain:document.getElementById('sDomain').value.trim(),panel_port:document.getElementById('sPort').value});toast('ذخیره شد — لینک‌ها آپدیت شدن');}catch(e){toast(e.message);}}
@@ -2447,9 +2701,14 @@ const tok=document.getElementById('sBotToken').value.trim();if(tok)b.bot_token=t
 await saveSettingsPatch(b);toast('ذخیره و ربات ری‌استارت شد');}catch(e){toast(e.message);}}
 async function issueSsl(){if(!confirm('گواهی SSL گرفته بشه؟ دامنه باید به سرور اشاره کنه.'))return;
 try{toast('در حال دریافت SSL...');await api('/api/ssl/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('sSslEmail').value.trim()})});toast('SSL گرفته شد ✅');loadSettings();}catch(e){toast(e.message);}}
-async function saveTransports(){try{await saveSettingsPatch({transport_vless:document.getElementById('sTrVless').value,transport_trojan:document.getElementById('sTrTrojan').value,transport_vmess:document.getElementById('sTrVmess').value,transport_ss:document.getElementById('sTrSs').value});toast('ترنسپورت ذخیره و Xray بازسازی شد');}catch(e){toast(e.message);}}
+async function saveTransports(){try{await saveSettingsPatch({transport_vless:document.getElementById('sTrVless').value,transport_trojan:document.getElementById('sTrTrojan').value,transport_vmess:document.getElementById('sTrVmess').value,transport_ss:document.getElementById('sTrSs').value,transport_http:document.getElementById('sTrHttp').value});toast('ترنسپورت ذخیره و Xray بازسازی شد');}catch(e){toast(e.message);}}
 async function saveLanding(){try{await saveSettingsPatch({landing_title:document.getElementById('sLandTitle').value,landing_subtitle:document.getElementById('sLandSub').value,landing_footer:document.getElementById('sLandFoot').value,landing_template:document.getElementById('sLandTpl').value});toast('لندینگ ذخیره شد');}catch(e){toast(e.message);}}
-async function saveL2tp(){try{await saveSettingsPatch({l2tp_enabled:document.getElementById('sL2tpEnabled').checked?'1':'0',l2tp_secret:document.getElementById('sL2tpSecret').value.trim()});toast('L2TP اعمال شد');loadL2tp();}catch(e){toast(e.message);}}
+async function saveL2tp(){try{await saveSettingsPatch({l2tp_enabled:document.getElementById('sL2tpEnabled').checked?'1':'0',ikev2_enabled:document.getElementById('sIkev2Enabled').checked?'1':'0',l2tp_secret:document.getElementById('sL2tpSecret').value.trim()});toast('L2TP/IKEv2 اعمال شد');loadL2tp();}catch(e){toast(e.message);}}
+async function loadMtproxy(){try{const d=await api('/api/mtproxy');
+document.getElementById('mtState').textContent=`وضعیت: ${d.status||'?'} | پورت: ${d.port}`;
+document.getElementById('mtLink').textContent=d.link||'—';}catch(e){}}
+async function saveMtproxy(){try{await saveSettingsPatch({mtproxy_enabled:document.getElementById('sMtEnabled').checked?'1':'0',mtproxy_secret:document.getElementById('sMtSecret').value.trim(),mtproxy_port:document.getElementById('sMtPort').value});toast('MTProxy اعمال شد');loadMtproxy();}catch(e){toast(e.message);}}
+async function genMtSecret(){try{const d=await api('/api/mtproxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'})});document.getElementById('sMtSecret').value=d.secret;document.getElementById('mtLink').textContent=d.link;toast('Secret ساخته شد — ذخیره کن');}catch(e){toast(e.message);}}
 async function loadL2tp(){try{const d=await api('/api/l2tp');
 document.getElementById('l2tpServer').textContent=d.server||'';
 document.getElementById('l2tpState').textContent=`strongswan: ${d.status.strongswan||'?'} | xl2tpd: ${d.status.xl2tpd||'?'}`;
