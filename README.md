@@ -4,6 +4,8 @@ Custom VPN management panel built from scratch (Flask + SQLite + Xray-core).
 
 **Sponsor: [Sirgsm.ir](https://sirgsm.ir) — Navid Haghbayan**
 
+**English** | [فارسی](README.fa.md)
+
 ## Features
 
 - **4 protocols**: VLESS, Trojan, Shadowsocks 2022, VMess
@@ -20,6 +22,8 @@ Custom VPN management panel built from scratch (Flask + SQLite + Xray-core).
 - **L2TP / IKEv2 (IPsec)**: PSK + per-user PPP accounts, managed from Settings
 - **SSL**: one-click Let's Encrypt for the panel domain (Settings > SSL)
 - **Telegram bot** (`bot.py`): `/add /list /links /status /l2tp /version /del /reset /enable /disable` — token & admin ID are set in Panel Settings
+- **Backup/Restore**: DB download, restore (auto-backup before), auto-backup every 24h to the bot
+- **User migration**: JSON export/import (Sirgsm + Marzban formats) preserving duration & volume
 - **Settings in panel**: domain, port, password, bot, SSL, transports, landing page, L2TP, update repo
 - **Update**: check GitHub for new releases and update in one click (Settings > Update)
 - **Persian RTL UI**, secret URL path, SIP Gateway (Asterisk) monitoring only (never touched)
@@ -27,13 +31,13 @@ Custom VPN management panel built from scratch (Flask + SQLite + Xray-core).
 ## Install (one line)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh | bash
 ```
 
 Or from a local clone:
 
 ```bash
-git clone https://github.com/<owner>/<repo>.git && cd <repo>
+git clone https://github.com/navidhaghpanah/sirgsm-vpn-panel.git && cd sirgsm-vpn-panel
 sudo bash install.sh
 ```
 
