@@ -50,7 +50,7 @@ DOMAIN = 'nhv.3tayesh.ir'
 SERVER_IP = '185.204.169.123'
 PANEL_NAME = 'Sirgsm VPN Panel'
 SPONSOR = 'Sirgsm.ir — Navid Haghbayan'
-PANEL_VERSION = '3.0.0'
+PANEL_VERSION = '3.1.0'
 GITHUB_REPO = 'sirgsm/sirgsm-vpn-panel'  # default, overridable in settings (update_repo)
 
 # Load base secrets (VLESS existing + Trojan keys)
@@ -200,6 +200,9 @@ SETTINGS_DEFAULTS = {
     'update_repo': GITHUB_REPO,
     'ssl_email': '',
     'ssl_enabled': '0',
+    'backup_enabled': '1',
+    'backup_interval_hours': '24',
+    'backup_last': '0',
 }
 
 def get_setting(key, default=None):
@@ -247,8 +250,10 @@ def ssl_available(domain=None):
     return os.path.exists(c) and os.path.exists(k)
 
 def panel_scheme():
-    # https if SSL cert available for domain, else http
-    return 'https' if ssl_available() else 'http'
+    # Panel itself serves HTTP (secret path + password protect it).
+    # The Let's Encrypt cert is used for Xray TLS transports, not panel HTTPS.
+    # (For panel HTTPS, put nginx in front — see README.)
+    return 'http'
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -1571,6 +1576,245 @@ def api_l2tp_one(uid):
         return jsonify({'error': str(e)}), 500
     return jsonify(dict(newrow))
 
+BACKUP_DIR = '/opt/sirgsm-panel/backups'
+
+def make_backup():
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    ts = time.strftime('%Y%m%d-%H%M%S')
+    dest = os.path.join(BACKUP_DIR, f'panel-{ts}.db')
+    con = db()
+    # Use sqlite backup API for consistency
+    src = con
+    dst = sqlite3.connect(dest)
+    src.backup(dst)
+    dst.close()
+    con.close()
+    # Keep last 7
+    try:
+        files = sorted(os.listdir(BACKUP_DIR))
+        for f in files[:-7]:
+            os.remove(os.path.join(BACKUP_DIR, f))
+    except Exception:
+        pass
+    return dest
+
+def tg_send_document(token, chat_id, filepath, caption=''):
+    url = f'https://api.telegram.org/bot{token}/sendDocument'
+    boundary = '----SirgsmBackupBoundary'
+    with open(filepath, 'rb') as fh:
+        data = fh.read()
+    body = io.BytesIO()
+    body.write(f'--{boundary}\r\n'.encode())
+    body.write(f'Content-Disposition: form-data; name="chat_id"\r\n\r\n{chat_id}\r\n'.encode())
+    if caption:
+        body.write(f'--{boundary}\r\n'.encode())
+        body.write(b'Content-Disposition: form-data; name="caption"\r\n\r\n')
+        body.write(caption.encode('utf-8') + b'\r\n')
+    body.write(f'--{boundary}\r\n'.encode())
+    body.write(f'Content-Disposition: form-data; name="document"; filename="{os.path.basename(filepath)}"\r\n'.encode())
+    body.write(b'Content-Type: application/octet-stream\r\n\r\n')
+    body.write(data + b'\r\n')
+    body.write(f'--{boundary}--\r\n'.encode())
+    req = urllib.request.Request(url, data=body.getvalue(),
+                                 headers={'Content-Type': f'multipart/form-data; boundary={boundary}'})
+    try:
+        r = urllib.request.urlopen(req, timeout=60)
+        return json.loads(r.read().decode(errors='ignore')).get('ok', False)
+    except Exception as e:
+        print(f'backup send failed: {e}', flush=True)
+        return False
+
+def backup_loop():
+    while True:
+        try:
+            time.sleep(3600)
+            if get_setting('backup_enabled', '1') != '1':
+                continue
+            try:
+                interval = int(get_setting('backup_interval_hours', '24') or 24) * 3600
+            except Exception:
+                interval = 24 * 3600
+            try:
+                last = int(get_setting('backup_last', '0') or 0)
+            except Exception:
+                last = 0
+            if time.time() - last < interval:
+                continue
+            token = get_setting('bot_token', '')
+            admin = get_setting('bot_admin_id', '')
+            if not token or not admin:
+                continue
+            dest = make_backup()
+            ok = tg_send_document(token, admin, dest,
+                                  caption=f'Sirgsm VPN Panel — Auto backup {time.strftime("%Y-%m-%d %H:%M")}')
+            if ok:
+                set_setting('backup_last', str(int(time.time())))
+                print(f'Auto backup sent: {dest}', flush=True)
+        except Exception as e:
+            print(f'backup loop error: {e}', flush=True)
+
+@app.route(f'/{SECRET_PATH}/api/backup', methods=['GET', 'POST'])
+@login_required
+def api_backup():
+    if request.method == 'GET':
+        # Download current DB
+        dest = make_backup()
+        return send_file(dest, as_attachment=True, download_name=os.path.basename(dest),
+                         mimetype='application/octet-stream')
+    # POST: manual backup + send to bot
+    token = get_setting('bot_token', '')
+    admin = get_setting('bot_admin_id', '')
+    if not token or not admin:
+        return jsonify({'error': 'توکن ربات یا آیدی ادمین ست نشده'}), 400
+    dest = make_backup()
+    ok = tg_send_document(token, admin, dest,
+                          caption=f'Sirgsm VPN Panel — Manual backup {time.strftime("%Y-%m-%d %H:%M")}')
+    if ok:
+        set_setting('backup_last', str(int(time.time())))
+        return jsonify({'ok': True, 'file': os.path.basename(dest)})
+    return jsonify({'error': 'ارسال به تلگرام ناموفق بود'}), 500
+
+@app.route(f'/{SECRET_PATH}/api/backup/restore', methods=['POST'])
+@login_required
+def api_backup_restore():
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'فایل آپلود نشد'}), 400
+    tmp = '/tmp/sirgsm-restore.db'
+    f.save(tmp)
+    # Validate: sqlite header + clients table
+    try:
+        with open(tmp, 'rb') as fh:
+            header = fh.read(16)
+        if not header.startswith(b'SQLite format 3'):
+            return jsonify({'error': 'فایل دیتابیس معتبر نیست'}), 400
+        con = sqlite3.connect(tmp)
+        tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        con.close()
+        if 'clients' not in tables or 'settings' not in tables:
+            return jsonify({'error': 'فایل دیتابیس پنل نیست (جدول clients/settings ندارد)'}), 400
+    except Exception as e:
+        return jsonify({'error': f'اعتبارسنجی ناموفق بود: {e}'}), 400
+    # Backup current before restore
+    make_backup()
+    shutil.copy(tmp, DB_PATH)
+    try:
+        build_xray_config()
+        restart_xray()
+    except Exception:
+        pass
+    # Restart panel to reload (new DB)
+    try:
+        subprocess.run(['systemctl', 'restart', 'sirgsm-panel'], timeout=10)
+    except Exception:
+        pass
+    return jsonify({'ok': True})
+
+@app.route(f'/{SECRET_PATH}/api/users/export')
+@login_required
+def api_users_export():
+    fmt = request.args.get('format', 'sirgsm')
+    con = db()
+    rows = con.execute("SELECT * FROM clients ORDER BY id").fetchall()
+    con.close()
+    if fmt == 'marzban':
+        out = []
+        for c in rows:
+            proxies = {}
+            if c['inbound'] == 'vless':
+                proxies['vless'] = {'id': c['uuid']}
+            elif c['inbound'] == 'trojan':
+                proxies['trojan'] = {'password': c['password']}
+            elif c['inbound'] == 'vmess':
+                proxies['vmess'] = {'id': c['uuid']}
+            elif c['inbound'] == 'ss':
+                proxies['shadowsocks'] = {'password': c['password']}
+            out.append({
+                'username': c['email'],
+                'proxies': proxies,
+                'expire': c['expiry'] or 0,
+                'data_limit': c['traffic_limit'] or 0,
+                'data_limit_reset_day': 0,
+                'status': 'active' if c['enable'] else 'disabled',
+                'on_hold_timeout': 0,
+                'on_hold_expire_day': 0,
+                'note': c['note'] or '',
+            })
+        return jsonify(out)
+    out = []
+    for c in rows:
+        out.append({
+            'email': c['email'], 'inbound': c['inbound'],
+            'uuid': c['uuid'], 'password': c['password'],
+            'traffic_limit': c['traffic_limit'] or 0,
+            'expiry': c['expiry'] or 0,
+            'ip_limit': c['ip_limit'] or 0,
+            'enable': bool(c['enable']), 'note': c['note'] or '',
+            'up': c['up'] or 0, 'down': c['down'] or 0,
+        })
+    return jsonify(out)
+
+@app.route(f'/{SECRET_PATH}/api/users/import', methods=['POST'])
+@login_required
+def api_users_import():
+    data = request.get_json(force=True)
+    if not isinstance(data, list):
+        return jsonify({'error': 'فایل باید لیست JSON باشه'}), 400
+    con = db()
+    created, skipped = 0, 0
+    for item in data:
+        # Support sirgsm format + marzban format
+        email = item.get('email') or item.get('username') or ''
+        inbound = item.get('inbound', '')
+        uuid_v = item.get('uuid', '')
+        password = item.get('password', '')
+        traffic_limit = item.get('traffic_limit', item.get('data_limit', 0)) or 0
+        expiry = item.get('expiry', item.get('expire', 0)) or 0
+        ip_limit = item.get('ip_limit', 0) or 0
+        enable = item.get('enable', True)
+        if isinstance(enable, str):
+            enable = enable.lower() in ('1', 'true', 'active')
+        note = item.get('note', '') or ''
+        proxies = item.get('proxies', {})
+        if not inbound and proxies:
+            if 'vless' in proxies:
+                inbound = 'vless'
+                uuid_v = proxies['vless'].get('id', '')
+            elif 'trojan' in proxies:
+                inbound = 'trojan'
+                password = proxies['trojan'].get('password', '')
+            elif 'vmess' in proxies:
+                inbound = 'vmess'
+                uuid_v = proxies['vmess'].get('id', '')
+            elif 'shadowsocks' in proxies:
+                inbound = 'ss'
+                password = proxies['shadowsocks'].get('password', '')
+        if not email or inbound not in INBOUNDS_META:
+            skipped += 1
+            continue
+        if con.execute("SELECT id FROM clients WHERE email=?", (email,)).fetchone():
+            skipped += 1
+            continue
+        # Generate missing creds
+        if inbound in ('vless', 'vmess') and not uuid_v:
+            uuid_v = str(uuid.uuid4())
+        if inbound == 'trojan' and not password:
+            password = secrets.token_urlsafe(12)[:16]
+        if inbound == 'ss' and not password:
+            password = base64.b64encode(os.urandom(16)).decode()
+        con.execute("INSERT INTO clients(email,inbound,uuid,password,traffic_limit,expiry,ip_limit,enable,created,note) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (email, inbound, uuid_v, password, int(traffic_limit), int(expiry),
+                     int(ip_limit), 1 if enable else 0, int(time.time()), note))
+        created += 1
+    con.commit()
+    con.close()
+    try:
+        build_xray_config()
+        restart_xray()
+    except Exception as e:
+        return jsonify({'error': f'ایمپورت شد ولی Xray restart نشد: {e}', 'created': created, 'skipped': skipped}), 500
+    return jsonify({'ok': True, 'created': created, 'skipped': skipped})
+
 @app.route(f'/{SECRET_PATH}/api/clients/bulk', methods=['POST'])
 @login_required
 def api_clients_bulk():
@@ -1834,7 +2078,11 @@ pre{background:#070d18;border:1px solid #1e2d4d;border-radius:12px;padding:12px;
 <option value="">همه پروتکل‌ها</option><option value="vless">VLESS Reality (443)</option>
 <option value="trojan">Trojan Reality (8443)</option><option value="ss">Shadowsocks 2022 (8388)</option><option value="vmess">VMess Reality (2096)</option></select>
 <input id="fSearch" placeholder="جستجو ایمیل..." oninput="loadClients()" style="max-width:260px">
-<div style="flex:1"></div><button class="btn primary" onclick="openAdd()">+ کاربر جدید</button></div>
+<div style="flex:1"></div>
+<button class="btn" onclick="exportUsers('sirgsm')">⬇ خروجی (Sirgsm)</button>
+<button class="btn" onclick="exportUsers('marzban')">⬇ خروجی (Marzban)</button>
+<label class="btn" style="cursor:pointer">⬆ ایمپورت<input type="file" id="importFile" accept=".json" style="display:none" onchange="importUsers()"></label>
+<button class="btn primary" onclick="openAdd()">+ کاربر جدید</button></div>
 <div class="row" id="bulkBar" style="display:none;margin:0 0 10px">
 <span id="bulkCount"></span>
 <button class="btn sm" onclick="bulkAction('enable')">فعال</button>
@@ -1923,6 +2171,15 @@ pre{background:#070d18;border:1px solid #1e2d4d;border-radius:12px;padding:12px;
 <button class="btn sm primary" onclick="addL2tp()">+ افزودن</button></div>
 <div id="l2tpList" style="margin-top:10px"></div>
 <p class="hint">سرور: <span class="mono" id="l2tpServer"></span> | نوع: L2TP/IPsec (PSK) | پورت‌ها: UDP 500/4500/1701</p></div>
+<div class="card"><h3 style="margin-top:0">💾 بکاپ و ریستور</h3>
+<label><input type="checkbox" id="sBackupEnabled" onchange="saveBackupSettings()"> بکاپ خودکار (هر ۲۴ ساعت به ربات تلگرام)</label>
+<label>بازه (ساعت)</label><input id="sBackupHours" type="number" min="1" dir="ltr" onchange="saveBackupSettings()">
+<p class="hint" id="backupState">...</p>
+<div class="row">
+<button class="btn" onclick="downloadBackup()">⬇ دانلود بکاپ (DB)</button>
+<button class="btn" onclick="sendBackup()">📤 بکاپ دستی به ربات</button>
+<label class="btn" style="cursor:pointer">⬆ ریستور<input type="file" id="restoreFile" accept=".db" style="display:none" onchange="restoreBackup()"></label></div>
+<p class="hint">ریستور دیتابیس فعلی رو جایگزین می‌کنه (قبلش خودکار بکاپ گرفته می‌شه).</p></div>
 <div class="card"><h3 style="margin-top:0">⬆ آپدیت پنل</h3>
 <p class="hint">نسخه فعلی: <b id="curVer">...</b> | ریپو: <span class="mono" id="updRepo"></span></p>
 <label>ریپوی گیت‌هاب (owner/repo)</label><input id="sUpdRepo" dir="ltr">
@@ -2074,6 +2331,9 @@ document.getElementById('sLandTpl').value=s.landing_template||'';
 document.getElementById('sL2tpEnabled').checked=s.l2tp_enabled==='1';
 document.getElementById('sL2tpSecret').value=s.l2tp_secret||'';
 document.getElementById('sUpdRepo').value=s.update_repo||'';
+document.getElementById('sBackupEnabled').checked=s.backup_enabled==='1';
+document.getElementById('sBackupHours').value=s.backup_interval_hours||24;
+document.getElementById('backupState').textContent=s.backup_last&&s.backup_last!=='0'?('آخرین بکاپ: '+new Date(+s.backup_last*1000).toLocaleString('fa-IR')):'هنوز بکاپی گرفته نشده';
 document.getElementById('curVer').textContent=s.panel_version||'';
 document.getElementById('aboutVer').textContent=s.panel_version||'';
 document.getElementById('updRepo').textContent=s.update_repo||'';
@@ -2105,6 +2365,19 @@ try{await api('/api/l2tp',{method:'POST',headers:{'Content-Type':'application/js
 async function toggleL2tp(id,en){try{await api('/api/l2tp/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enable:en})});loadL2tp();}catch(e){toast(e.message);}}
 async function delL2tp(id){if(!confirm('حذف بشه؟'))return;try{await api('/api/l2tp/'+id,{method:'DELETE'});loadL2tp();}catch(e){toast(e.message);}}
 async function saveUpdRepo(){try{await saveSettingsPatch({update_repo:document.getElementById('sUpdRepo').value.trim()});toast('ریپو ذخیره شد');loadSettings();}catch(e){toast(e.message);}}
+async function saveBackupSettings(){try{await saveSettingsPatch({backup_enabled:document.getElementById('sBackupEnabled').checked?'1':'0',backup_interval_hours:document.getElementById('sBackupHours').value});toast('تنظیمات بکاپ ذخیره شد');}catch(e){toast(e.message);}}
+function downloadBackup(){window.open(base+'/api/backup','_blank');}
+async function sendBackup(){try{toast('در حال ارسال بکاپ به ربات...');await api('/api/backup',{method:'POST'});toast('بکاپ به ربات ارسال شد ✅');loadSettings();}catch(e){toast(e.message);}}
+async function restoreBackup(){const f=document.getElementById('restoreFile').files[0];if(!f)return;
+if(!confirm('دیتابیس فعلی با این فایل جایگزین بشه؟ (قبلش بکاپ گرفته می‌شه)'))return;
+const fd=new FormData();fd.append('file',f);
+try{const r=await fetch(base+'/api/backup/restore',{method:'POST',body:fd,credentials:'same-origin'});
+const d=await r.json();if(!r.ok)throw new Error(d.error||'خطا');toast('ریستور انجام شد ✅');setTimeout(()=>location.reload(),1500);}catch(e){toast(e.message);}}
+function exportUsers(fmt){window.open(base+'/api/users/export?format='+fmt,'_blank');}
+async function importUsers(){const f=document.getElementById('importFile').files[0];if(!f)return;
+try{const txt=await f.text();const data=JSON.parse(txt);
+const d=await api('/api/users/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+toast(`ایمپورت شد: ${d.created} ساخته، ${d.skipped} رد شد`);loadClients();}catch(e){toast(e.message);}}
 async function checkUpdate(){document.getElementById('updState').textContent='در حال بررسی...';
 try{const d=await api('/api/update/check');
 if(d.error){document.getElementById('updState').textContent='❌ '+d.error;return;}
@@ -2131,5 +2404,7 @@ if __name__ == '__main__':
         print(f'Initial config failed: {e}', flush=True)
     t = threading.Thread(target=stats_loop, daemon=True)
     t.start()
+    bt = threading.Thread(target=backup_loop, daemon=True)
+    bt.start()
     print(f'Sirgsm VPN Panel starting on port {PANEL_PORT}, secret path /{SECRET_PATH}/', flush=True)
     app.run(host='0.0.0.0', port=PANEL_PORT, threaded=True)
