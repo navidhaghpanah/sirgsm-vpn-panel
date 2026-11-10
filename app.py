@@ -50,7 +50,7 @@ DOMAIN = 'nhv.3tayesh.ir'
 SERVER_IP = '185.204.169.123'
 PANEL_NAME = 'Sirgsm VPN Panel'
 SPONSOR = 'Sirgsm.ir'
-PANEL_VERSION = '3.3.0'
+PANEL_VERSION = '3.4.0'
 GITHUB_REPO = 'sirgsm/sirgsm-vpn-panel'  # default, overridable in settings (update_repo)
 
 # Load base secrets (VLESS existing + Trojan keys)
@@ -202,6 +202,11 @@ SETTINGS_DEFAULTS = {
     'transport_vmess': 'reality-tcp',
     'transport_ss': 'tcp',
     'transport_http': 'tcp',
+    'port_vless': '443',
+    'port_trojan': '8443',
+    'port_ss': '8388',
+    'port_vmess': '2096',
+    'port_http': '8080',
     'update_repo': GITHUB_REPO,
     'ssl_email': '',
     'ssl_enabled': '0',
@@ -248,6 +253,15 @@ def get_transport(inbound):
     if tid not in choices:
         tid = 'reality-tcp' if inbound != 'ss' else 'tcp'
     return tid
+
+def get_port(inbound):
+    try:
+        p = int(get_setting(f'port_{inbound}', str(INBOUNDS_META[inbound]['port'])) or INBOUNDS_META[inbound]['port'])
+        if 1 <= p <= 65535:
+            return p
+    except Exception:
+        pass
+    return INBOUNDS_META[inbound]['port']
 
 def ssl_cert_paths(domain=None):
     d = domain or get_domain()
@@ -466,7 +480,7 @@ def build_xray_config():
             "settings": {"address": "127.0.0.1"},
         },
         {
-            "port": 443,
+            "port": get_port('vless'),
             "protocol": "vless",
             "settings": {"clients": vless_clients, "decryption": "none"},
             "streamSettings": build_stream('vless'),
@@ -474,7 +488,7 @@ def build_xray_config():
             "tag": "vless-in",
         },
         {
-            "port": 8443,
+            "port": get_port('trojan'),
             "protocol": "trojan",
             "settings": {"clients": trojan_clients},
             "streamSettings": build_stream('trojan'),
@@ -482,7 +496,7 @@ def build_xray_config():
             "tag": "trojan-in",
         },
         {
-            "port": 8388,
+            "port": get_port('ss'),
             "protocol": "shadowsocks",
             "settings": {
                 "method": "2022-blake3-aes-128-gcm",
@@ -494,7 +508,7 @@ def build_xray_config():
             "tag": "ss-in",
         },
         {
-            "port": 2096,
+            "port": get_port('vmess'),
             "protocol": "vmess",
             "settings": {"clients": vmess_clients},
             "streamSettings": build_stream('vmess'),
@@ -502,7 +516,7 @@ def build_xray_config():
             "tag": "vmess-in",
         },
         {
-            "port": 8080,
+            "port": get_port('http'),
             "protocol": "http",
             "settings": {
                 "auth": "password",
@@ -803,16 +817,16 @@ def gen_links(c):
         method = '2022-blake3-aes-128-gcm'
         raw = f"{method}:{SS_SERVER_KEY}:{c['password']}"
         b64 = base64.b64encode(raw.encode()).decode()
-        links.append(f"ss://{b64}@{SERVER_IP}:8388#{email}")
-        links.append(f"ss://{b64}@{domain}:8388#{email}")
+        links.append(f"ss://{b64}@{SERVER_IP}:{get_port('ss')}#{email}")
+        links.append(f"ss://{b64}@{domain}:{get_port('ss')}#{email}")
         return links
     if inbound == 'http':
-        links.append(f"http://{email}:{c['password']}@{SERVER_IP}:8080#{email}")
-        links.append(f"http://{email}:{c['password']}@{domain}:8080#{email}")
+        links.append(f"http://{email}:{c['password']}@{SERVER_IP}:{get_port('http')}#{email}")
+        links.append(f"http://{email}:{c['password']}@{domain}:{get_port('http')}#{email}")
         return links
     tid = get_transport(inbound)
     label, network, security = INBOUND_TRANSPORTS[inbound][tid]
-    port = INBOUNDS_META[inbound]['port']
+    port = get_port(inbound)
     # Reality params
     sni_r, _dest = REALITY_DEST.get(inbound, ('www.microsoft.com', ''))
     pub = {'vless': VLESS_PUB, 'trojan': TROJAN_PUB, 'vmess': VMESS_PUB}.get(inbound, '')
@@ -1351,7 +1365,7 @@ def api_settings():
         set_setting(k, v)
         changed.append(k)
     # Side effects
-    need_xray = any(k.startswith('transport_') or k == 'panel_domain' for k in changed)
+    need_xray = any(k.startswith('transport_') or k.startswith('port_') or k == 'panel_domain' for k in changed)
     need_bot = any(k in ('bot_token', 'bot_admin_id', 'bot_enabled') for k in changed)
     need_l2tp = any(k in ('l2tp_enabled', 'l2tp_secret', 'ikev2_enabled') for k in changed)
     need_mtproxy = any(k in ('mtproxy_enabled', 'mtproxy_secret', 'mtproxy_port') for k in changed)
@@ -1361,6 +1375,13 @@ def api_settings():
             build_xray_config()
             restart_xray()
             msg.append('xray rebuilt')
+            # Open new inbound ports in firewall
+            for k in changed:
+                if k.startswith('port_'):
+                    try:
+                        subprocess.run(['ufw', 'allow', f"{get_setting(k, '')}/tcp"], timeout=15)
+                    except Exception:
+                        pass
         except Exception as e:
             return jsonify({'error': f'Xray rebuild failed: {e}'}), 500
     if need_bot:
@@ -2471,14 +2492,17 @@ pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;pa
 <p class="hint" id="sslState">...</p>
 <div class="row"><button class="btn primary" onclick="issueSsl()">دریافت گواهی SSL</button></div>
 <p class="hint">دامنه باید به این سرور اشاره کنه (DNS). پورت ۸۰ باید آزاد باشه.</p></div>
-<div class="card"><h3 style="margin-top:0">🔌 ترنسپورت اینباندها</h3>
-<label>VLESS</label><select id="sTrVless"></select>
-<label>Trojan</label><select id="sTrTrojan"></select>
-<label>VMess</label><select id="sTrVmess"></select>
-<label>Shadowsocks</label><select id="sTrSs"></select>
-<label>HTTP Proxy</label><select id="sTrHttp"></select>
-<div class="row"><button class="btn primary" onclick="saveTransports()">ذخیره (بازسازی Xray)</button></div>
-<p class="hint">برای TLS باید اول SSL گرفته باشی. Reality نیازی به گواهی نداره.</p></div>
+<div class="card"><h3 style="margin-top:0">🔌 ترنسپورت و پورت اینباندها</h3>
+<label>VLESS — ترنسپورت</label><select id="sTrVless"></select>
+<label>VLESS — پورت</label><input id="sPortVless" type="number" dir="ltr">
+<label>Trojan — ترنسپورت</label><select id="sTrTrojan"></select>
+<label>Trojan — پورت</label><input id="sPortTrojan" type="number" dir="ltr">
+<label>VMess — ترنسپورت</label><select id="sTrVmess"></select>
+<label>VMess — پورت</label><input id="sPortVmess" type="number" dir="ltr">
+<label>Shadowsocks — پورت</label><input id="sPortSs" type="number" dir="ltr">
+<label>HTTP Proxy — پورت</label><input id="sPortHttp" type="number" dir="ltr">
+<div class="row"><button class="btn primary" onclick="saveTransports()">ذخیره (بازسازی Xray + فایروال)</button></div>
+<p class="hint">برای TLS باید اول SSL گرفته باشی. Reality نیازی به گواهی نداره. پورت جدید خودکار در فایروال باز می‌شه.</p></div>
 <div class="card"><h3 style="margin-top:0">🖼 لندینگ‌پیج اشتراک</h3>
 <label>عنوان</label><input id="sLandTitle">
 <label>زیرعنوان</label><input id="sLandSub">
@@ -2693,6 +2717,11 @@ const fill=(id,ib,cur)=>{const el=document.getElementById(id);const ch=(s.transp
 el.innerHTML=Object.entries(ch).map(([k,v])=>`<option value="${k}" ${k===cur?'selected':''}>${v}</option>`).join('');};
 fill('sTrVless','vless',s.transport_vless);fill('sTrTrojan','trojan',s.transport_trojan);
 fill('sTrVmess','vmess',s.transport_vmess);fill('sTrSs','ss',s.transport_ss);fill('sTrHttp','http',s.transport_http);
+document.getElementById('sPortVless').value=s.port_vless||443;
+document.getElementById('sPortTrojan').value=s.port_trojan||8443;
+document.getElementById('sPortVmess').value=s.port_vmess||2096;
+document.getElementById('sPortSs').value=s.port_ss||8388;
+document.getElementById('sPortHttp').value=s.port_http||8080;
 loadL2tp();}
 async function saveSettingsPatch(b){return api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});}
 async function saveDomain(){try{await saveSettingsPatch({panel_domain:document.getElementById('sDomain').value.trim(),panel_port:document.getElementById('sPort').value});toast('ذخیره شد — لینک‌ها آپدیت شدن');}catch(e){toast(e.message);}}
@@ -2701,7 +2730,7 @@ const tok=document.getElementById('sBotToken').value.trim();if(tok)b.bot_token=t
 await saveSettingsPatch(b);toast('ذخیره و ربات ری‌استارت شد');}catch(e){toast(e.message);}}
 async function issueSsl(){if(!confirm('گواهی SSL گرفته بشه؟ دامنه باید به سرور اشاره کنه.'))return;
 try{toast('در حال دریافت SSL...');await api('/api/ssl/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('sSslEmail').value.trim()})});toast('SSL گرفته شد ✅');loadSettings();}catch(e){toast(e.message);}}
-async function saveTransports(){try{await saveSettingsPatch({transport_vless:document.getElementById('sTrVless').value,transport_trojan:document.getElementById('sTrTrojan').value,transport_vmess:document.getElementById('sTrVmess').value,transport_ss:document.getElementById('sTrSs').value,transport_http:document.getElementById('sTrHttp').value});toast('ترنسپورت ذخیره و Xray بازسازی شد');}catch(e){toast(e.message);}}
+async function saveTransports(){try{await saveSettingsPatch({transport_vless:document.getElementById('sTrVless').value,transport_trojan:document.getElementById('sTrTrojan').value,transport_vmess:document.getElementById('sTrVmess').value,transport_ss:document.getElementById('sTrSs').value,transport_http:document.getElementById('sTrHttp').value,port_vless:document.getElementById('sPortVless').value,port_trojan:document.getElementById('sPortTrojan').value,port_vmess:document.getElementById('sPortVmess').value,port_ss:document.getElementById('sPortSs').value,port_http:document.getElementById('sPortHttp').value});toast('ذخیره و Xray بازسازی شد');}catch(e){toast(e.message);}}
 async function saveLanding(){try{await saveSettingsPatch({landing_title:document.getElementById('sLandTitle').value,landing_subtitle:document.getElementById('sLandSub').value,landing_footer:document.getElementById('sLandFoot').value,landing_template:document.getElementById('sLandTpl').value});toast('لندینگ ذخیره شد');}catch(e){toast(e.message);}}
 async function saveL2tp(){try{await saveSettingsPatch({l2tp_enabled:document.getElementById('sL2tpEnabled').checked?'1':'0',ikev2_enabled:document.getElementById('sIkev2Enabled').checked?'1':'0',l2tp_secret:document.getElementById('sL2tpSecret').value.trim()});toast('L2TP/IKEv2 اعمال شد');loadL2tp();}catch(e){toast(e.message);}}
 async function loadMtproxy(){try{const d=await api('/api/mtproxy');
