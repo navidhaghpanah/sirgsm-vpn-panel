@@ -2,7 +2,7 @@
 
 Custom VPN management panel built from scratch (Flask + SQLite + Xray-core).
 
-**Sponsor: [Sirgsm.ir](https://sirgsm.ir) — Navid Haghbayan**
+**Sirgsm.ir**
 
 **English** | [فارسی](README.fa.md)
 
@@ -82,4 +82,4 @@ In **Panel > Settings > Update**: set the GitHub repo (`owner/repo`), check for 
 MIT — see `LICENSE`.
 
 ---
-Sponsor: **Sirgsm.ir — Navid Haghbayan**
+**Sirgsm.ir**

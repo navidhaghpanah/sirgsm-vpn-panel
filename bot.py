@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Sirgsm VPN Panel — Telegram Bot
-Sponsor: Sirgsm.ir — Navid Haghbayan
+Sirgsm.ir
 
 Bot for managing VPN users via the Sirgsm panel HTTP API.
 Uses raw Telegram Bot API (stdlib only, no extra deps).
@@ -142,8 +142,10 @@ TG = f"https://api.telegram.org/bot{BOT_TOKEN}"
 def tg(method, **kwargs):
     url = TG + "/" + method
     data = urllib.parse.urlencode(kwargs).encode()
+    # Long polling (getUpdates timeout=50) needs urlopen timeout > 50
+    to = 65 if method == 'getUpdates' else 30
     try:
-        r = urllib.request.urlopen(url, data=data, timeout=30)
+        r = urllib.request.urlopen(url, data=data, timeout=to)
         return json.loads(r.read().decode(errors='ignore'))
     except Exception as e:
         print(f"tg {method} failed: {e}", flush=True)
@@ -215,7 +217,7 @@ HELP = """<b>راهنمای ربات Sirgsm VPN</b>
 🔄 <code>/reset &lt;email&gt;</code> — ریست مصرف
 ✅ <code>/enable &lt;email&gt;</code> / ❌ <code>/disable &lt;email&gt;</code>
 
-Sponsor: Sirgsm.ir — Navid Haghbayan"""
+Sirgsm.ir"""
 
 def is_admin(user_id):
     if not BOT_ADMIN_ID:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sirgsm VPN Panel — one-line installer (Ubuntu/Debian)
-# Sponsor: Sirgsm.ir — Navid Haghbayan
+# Sirgsm.ir
 #
 # Install (one line):
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | bash
@@ -152,4 +152,4 @@ echo ""
 echo "=== Done! ==="
 echo "Panel: http://$DOMAIN:$PANEL_PORT/$SECRET_PATH/"
 echo "Bot: set token in Panel > Settings > Telegram, then: systemctl restart sirgsm-bot"
-echo "Sponsor: Sirgsm.ir — Navid Haghbayan"
+echo "Sirgsm.ir"

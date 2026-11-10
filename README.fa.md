@@ -2,7 +2,7 @@
 
 پنل مدیریت VPN اختصاصی، ساخته‌شده از صفر (Flask + SQLite + Xray-core).
 
-**اسپانسر: [Sirgsm.ir](https://sirgsm.ir) — Navid Haghbayan**
+**Sirgsm.ir**
 
 [English](README.md) | **فارسی**
 
@@ -87,4 +87,4 @@ sudo bash install.sh
 MIT — فایل `LICENSE` را ببین.
 
 ---
-اسپانسر: **Sirgsm.ir — Navid Haghbayan**
+**Sirgsm.ir**

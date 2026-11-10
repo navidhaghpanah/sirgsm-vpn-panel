@@ -4,7 +4,7 @@
 Sirgsm VPN Panel - Custom unique VPN management panel (built from scratch)
 VLESS Reality + Trojan Reality + Shadowsocks 2022 + VMess Reality | Users (traffic/expiry/IP-limit) | Routing + Warp | QR + Sub | Stats via Xray API
 Persian RTL UI, dark unique design. No third-party panel code.
-Sponsor: Sirgsm.ir — Navid Haghbayan
+Sirgsm.ir
 """
 import os
 import io
@@ -49,8 +49,8 @@ WARP_DIR = '/opt/sirgsm-panel/warp'
 DOMAIN = 'nhv.3tayesh.ir'
 SERVER_IP = '185.204.169.123'
 PANEL_NAME = 'Sirgsm VPN Panel'
-SPONSOR = 'Sirgsm.ir — Navid Haghbayan'
-PANEL_VERSION = '3.1.0'
+SPONSOR = 'Sirgsm.ir'
+PANEL_VERSION = '3.2.0'
 GITHUB_REPO = 'sirgsm/sirgsm-vpn-panel'  # default, overridable in settings (update_repo)
 
 # Load base secrets (VLESS existing + Trojan keys)
@@ -191,7 +191,7 @@ SETTINGS_DEFAULTS = {
     'l2tp_secret': '',
     'landing_title': 'Sirgsm VPN',
     'landing_subtitle': 'اشتراک VPN شما',
-    'landing_footer': 'Sponsor: Sirgsm.ir — Navid Haghbayan',
+    'landing_footer': 'Sirgsm.ir',
     'landing_template': '',
     'transport_vless': 'reality-tcp',
     'transport_trojan': 'reality-tcp',
@@ -1885,43 +1885,104 @@ def api_warp():
 LANDING_DEFAULT = r"""<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} — اشتراک</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:#0b1220;color:#e6edf7;min-height:100vh;padding:20px}
+:root{--bg:#0b1120;--card:#151f38;--border:#26365e;--text:#eef2ff;--muted:#94a3b8;--input:#0a1120;--accent1:#6366f1;--accent2:#06b6d4;--accent-txt:#fff}
+[data-theme="light"]{--bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--input:#ffffff;--accent1:#4f46e5;--accent2:#0891b2;--accent-txt:#fff}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:20px}
 .wrap{max-width:640px;margin:0 auto}
 .head{text-align:center;margin:24px 0}
-.badge{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#10b981,#0ea5e9);display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:28px;color:#04121a}
-h1{margin:12px 0 4px;font-size:24px} .sub{color:#8ea0bd}
-.card{background:linear-gradient(160deg,#111c33,#0d1526);border:1px solid #1e2d4d;border-radius:16px;padding:18px;margin:14px 0}
+.badge{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:28px;color:var(--accent-txt)}
+h1{margin:12px 0 4px;font-size:24px} .sub{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin:14px 0}
 .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between}
-.kv{font-size:14px;margin:6px 0}.kv b{color:#7dd3fc}
-.bar{height:10px;background:#1e2d4d;border-radius:6px;overflow:hidden;margin:8px 0}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,#10b981,#0ea5e9)}
-textarea{width:100%;background:#0a1120;color:#cfe3ff;border:1px solid #22355c;border-radius:10px;padding:10px;font-size:12px;direction:ltr;text-align:left}
-.btn{background:linear-gradient(135deg,#10b981,#0ea5e9);color:#04121a;border:0;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:inherit}
-.btn2{background:#1e2d4d;color:#e6edf7;border:1px solid #2b4066;border-radius:10px;padding:10px 18px;cursor:pointer;font-family:inherit}
+.kv{font-size:14px;margin:6px 0}.kv b{color:var(--accent2)}
+textarea{width:100%;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;direction:ltr;text-align:left}
+.btn{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:var(--accent-txt);border:0;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn2{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 18px;cursor:pointer;font-family:inherit}
 .qrs{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;text-align:center}
 .qrs img{width:150px;height:150px;background:#fff;border-radius:12px;padding:6px}
-.pill{display:inline-block;padding:3px 10px;border-radius:20px;background:#065f46;color:#a7f3d0;font-size:12px}
-.pill.off{background:#7f1d1d;color:#fecaca}
-.foot{text-align:center;color:#8ea0bd;font-size:12px;margin:24px 0}
-</style></head><body><div class="wrap">
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;background:var(--accent1);color:var(--accent-txt);font-size:12px}
+.pill.off{background:#dc2626;color:#fff}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin:24px 0}
+.gauges{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.gauge{text-align:center;min-width:150px}
+.gauge .val{font-size:18px;font-weight:900;margin-top:-8px}
+.gauge .lbl{font-size:12px;color:var(--muted)}
+.apps{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.app-btn{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:10px 14px;cursor:pointer;font-family:inherit;font-size:13px}
+.theme-btn{position:fixed;top:14px;left:14px;padding:8px 12px;border-radius:999px;background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:16px;z-index:10}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:12px;display:none;z-index:20;font-size:13px}
+</style></head><body>
+<button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️</button>
+<div class="wrap">
 <div class="head"><div class="badge">S</div><h1>{title}</h1><div class="sub">{subtitle}</div></div>
 <div class="card">
 <div class="row"><div class="kv">👤 کاربر: <b>{email}</b></div><div class="kv">🔌 پروتکل: <b>{protocol}</b></div></div>
-<div class="kv">📊 مصرف: <b>{used} / {limit}</b></div><div class="bar"><i style="width:{pct}%"></i></div>
+<div class="gauges">
+<div class="gauge">{vol_gauge}<div class="val">{vol_remain}</div><div class="lbl">حجم باقی‌مانده</div></div>
+<div class="gauge">{time_gauge}<div class="val">{time_remain}</div><div class="lbl">زمان باقی‌مانده</div></div>
+</div>
 <div class="row"><div class="kv">⏳ انقضا: <b>{expiry}</b></div><div class="kv">🌐 سقف IP: <b>{ip_limit}</b></div><div class="kv">🟢 آنلاین: <b>{online}</b></div></div>
 <div class="kv">وضعیت: <span class="pill {status_cls}">{status_fa}</span></div>
 </div>
+<div class="card"><h3 style="margin-top:0">📱 افزودن به اپ</h3>
+<div class="apps">
+<button class="app-btn" onclick="addToApp('v2rayng')">🤖 Android — v2rayNG</button>
+<button class="app-btn" onclick="addToApp('streisand')">🍎 iOS — Streisand</button>
+<button class="app-btn" onclick="addToApp('hiddify')">🌐 Hiddify</button>
+<button class="app-btn" onclick="copyText('{sub}')">📋 کپی ساب</button>
+</div>
+<p style="color:var(--muted);font-size:12px;text-align:center;margin:10px 0 0">دکمه اپ رو بزن — اگه اپ نصب نیست، ساب کپی می‌شه.</p></div>
 <div class="card"><h3 style="margin-top:0">🔗 لینک‌ها</h3>
 {links_html}
 <label>لینک اشتراک (Sub)</label><textarea rows="2" readonly>{sub}</textarea>
 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-<button class="btn" onclick="navigator.clipboard.writeText('{sub}');this.textContent='کپی شد ✓'">کپی ساب</button>
+<button class="btn" onclick="copyText('{sub}')">کپی ساب</button>
 <a class="btn2" href="{sub}/raw" style="text-decoration:none">نسخه خام (برای کلاینت)</a></div></div>
 <div class="card"><h3 style="margin-top:0">📷 QR</h3><div class="qrs">
 <div><img src="data:image/png;base64,{qr_link}"><br><small>QR لینک</small></div>
 <div><img src="data:image/png;base64,{qr_sub}"><br><small>QR اشتراک</small></div></div></div>
 <div class="foot">{footer}</div>
-</div></body></html>"""
+</div>
+<div class="toast" id="toast"></div>
+<script>
+try{var th=localStorage.getItem('sirgsm-theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}
+function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',c);try{localStorage.setItem('sirgsm-theme',c);}catch(e){}document.getElementById('themeBtn').textContent=c==='light'?'🌙':'☀️';}
+try{if(document.documentElement.getAttribute('data-theme')==='light')document.getElementById('themeBtn').textContent='🌙';}catch(e){}
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(function(){t.style.display='none';},2500);}
+function copyText(s){try{navigator.clipboard.writeText(s);toast('کپی شد ✓');}catch(e){toast('کپی ناموفق بود');}}
+function addToApp(app){
+var sub=encodeURIComponent('{sub}');
+var urls={v2rayng:'v2rayng://install?url='+sub,streisand:'streisand://install?url='+sub,hiddify:'hiddify://import/'+sub};
+var u=urls[app]||'';
+if(u){try{window.location.href=u;}catch(e){}}
+setTimeout(function(){copyText('{sub}');},1200);
+}
+</script>
+</body></html>"""
+def gauge_svg(pct):
+    """Car-speedometer style gauge (semicircle + needle). pct 0-100."""
+    pct = max(0, min(100, pct))
+    angle = -90 + (pct / 100.0) * 180  # -90 (empty) .. +90 (full)
+    # Needle endpoint (center 60,60, length 42)
+    import math
+    rad = math.radians(angle)
+    x2 = 60 + 42 * math.sin(rad)
+    y2 = 60 - 42 * math.cos(rad)
+    # Color: red (low) -> amber -> green (high)
+    if pct < 25:
+        col = '#ef4444'
+    elif pct < 60:
+        col = '#f59e0b'
+    else:
+        col = '#10b981'
+    return (f'<svg width="140" height="85" viewBox="0 0 120 75">'
+            f'<path d="M 10 65 A 50 50 0 0 1 110 65" fill="none" stroke="var(--border)" stroke-width="10" stroke-linecap="round"/>'
+            f'<path d="M 10 65 A 50 50 0 0 1 110 65" fill="none" stroke="{col}" stroke-width="10" stroke-linecap="round" '
+            f'stroke-dasharray="{pct * 1.57:.1f} 157"/>'
+            f'<line x1="60" y1="60" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{col}" stroke-width="3" stroke-linecap="round"/>'
+            f'<circle cx="60" cy="60" r="6" fill="{col}"/>'
+            f'<text x="10" y="74" font-size="8" fill="var(--muted)">0</text>'
+            f'<text x="104" y="74" font-size="8" fill="var(--muted)">100</text></svg>')
 
 def qr_b64(text):
     if not HAS_QR:
@@ -1970,6 +2031,25 @@ def subscription(uid):
         f'<label>لینک {i+1}</label><textarea rows="3" readonly>{l}</textarea>'
         for i, l in enumerate(links))
     tpl = get_setting('landing_template', '') or LANDING_DEFAULT
+    # Remaining volume/time for gauges
+    if lim:
+        vol_remain_pct = max(0, min(100, round((lim - total) / lim * 100)))
+        vol_remain = fmt_bytes(max(0, lim - total))
+    else:
+        vol_remain_pct = 100
+        vol_remain = 'نامحدود'
+    exp = row['expiry'] or 0
+    created = row['created'] or 0
+    if exp and created and exp > created:
+        time_remain_pct = max(0, min(100, round((exp - now) / (exp - created) * 100)))
+        days_left = max(0, round((exp - now) / 86400))
+        time_remain = f'{days_left} روز'
+    elif exp:
+        time_remain_pct = 100 if now < exp else 0
+        time_remain = f'{max(0, round((exp - now) / 86400))} روز'
+    else:
+        time_remain_pct = 100
+        time_remain = 'نامحدود'
     vals = {
         'title': get_setting('landing_title', 'Sirgsm VPN'),
         'subtitle': get_setting('landing_subtitle', 'اشتراک VPN شما'),
@@ -1982,6 +2062,10 @@ def subscription(uid):
         'links_html': links_html, 'sub': sub_url(row),
         'qr_link': qr_b64(links[1] if len(links) > 1 else (links[0] if links else '')),
         'qr_sub': qr_b64(sub_url(row)),
+        'vol_gauge': gauge_svg(vol_remain_pct),
+        'time_gauge': gauge_svg(time_remain_pct),
+        'vol_remain': vol_remain,
+        'time_remain': time_remain,
     }
     html = tpl
     for k, v in vals.items():
@@ -1996,65 +2080,76 @@ def root():
 LOGIN_HTML = r"""<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Sirgsm VPN Panel — ورود</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:#0b1220;color:#e6edf7;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
-.card{width:100%;max-width:380px;background:linear-gradient(160deg,#111c33,#0d1526);border:1px solid #1e2d4d;border-radius:20px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+:root{--bg:#0b1120;--card:#151f38;--card2:#0e1730;--border:#26365e;--text:#eef2ff;--muted:#94a3b8;--input:#0a1120;--accent1:#6366f1;--accent2:#06b6d4;--accent-txt:#fff;--danger-bg:#3b1420;--danger-tx:#fda4af;--ok-bg:#064e3b;--ok-tx:#a7f3d0}
+[data-theme="light"]{--bg:#f1f5f9;--card:#ffffff;--card2:#f8fafc;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--input:#ffffff;--accent1:#4f46e5;--accent2:#0891b2;--accent-txt:#fff;--danger-bg:#fee2e2;--danger-tx:#991b1b;--ok-bg:#d1fae5;--ok-tx:#065f46}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .logo{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-.badge{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#10b981,#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#04121a}
-h1{font-size:20px;margin:0}p{color:#8ea0bd;font-size:13px;margin:4px 0 0}
-label{display:block;font-size:13px;color:#aebdd6;margin:14px 0 6px}
-input{width:100%;padding:12px;border-radius:12px;border:1px solid #24365c;background:#0a1120;color:#fff;font-size:14px}
-button{width:100%;margin-top:18px;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#10b981,#0ea5e9);color:#04121a;font-weight:800;font-size:15px;cursor:pointer}
-.err{background:#3b1420;border:1px solid #7f1d2d;color:#fda4af;padding:10px;border-radius:10px;font-size:13px;margin-top:12px}
-</style></head><body><div class="card">
+.badge{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:var(--accent-txt)}
+h1{font-size:20px;margin:0}p{color:var(--muted);font-size:13px;margin:4px 0 0}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--input);color:var(--text);font-size:14px}
+button{width:100%;margin-top:18px;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:var(--accent-txt);font-weight:800;font-size:15px;cursor:pointer}
+.err{background:var(--danger-bg);border:1px solid var(--border);color:var(--danger-tx);padding:10px;border-radius:10px;font-size:13px;margin-top:12px}
+.theme-btn{position:fixed;top:14px;left:14px;width:auto;margin:0;padding:8px 12px;border-radius:999px;background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:16px}
+</style></head><body><button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️</button>
+<div class="card">
 <div class="logo"><div class="badge">S</div><div><h1>Sirgsm VPN Panel</h1><p>پنل اختصاصی VPN — ورود مدیر</p></div></div>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
 <form method="post"><label>نام کاربری</label><input name="username" required autocomplete="username">
 <label>رمز عبور</label><input name="password" type="password" required autocomplete="current-password">
 <button type="submit">ورود</button></form>
-<p style="text-align:center;margin-top:14px">nhv.3tayesh.ir<br><small style="color:#8ea0bd">Sponsor: Sirgsm.ir — Navid Haghbayan</small></p></div></body></html>"""
+<p style="text-align:center;margin-top:14px">nhv.3tayesh.ir<br><small style="color:var(--muted)">Sirgsm.ir</small></p></div>
+<script>try{var th=localStorage.getItem('sirgsm-theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}
+function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',c);try{localStorage.setItem('sirgsm-theme',c);}catch(e){}document.getElementById('themeBtn').textContent=c==='light'?'🌙':'☀️';}
+try{if(document.documentElement.getAttribute('data-theme')==='light')document.getElementById('themeBtn').textContent='🌙';}catch(e){}</script>
+</body></html>"""
 
 INDEX_HTML = r"""<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Sirgsm VPN Panel</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:#0b1220;color:#e6edf7}
-a{color:#38bdf8;text-decoration:none}
-.top{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.92);backdrop-filter:blur(10px);border-bottom:1px solid #1e2d4d;padding:12px 16px;display:flex;align-items:center;gap:12px}
-.badge{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#10b981,#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:900;color:#04121a}
-.top h1{font-size:17px;margin:0}.top small{color:#8ea0bd}
+:root{--bg:#0b1120;--card:#151f38;--card2:#0e1730;--border:#26365e;--text:#eef2ff;--muted:#94a3b8;--input:#0a1120;--accent1:#6366f1;--accent2:#06b6d4;--accent-txt:#fff;--danger-bg:#3b1420;--danger-tx:#fda4af;--ok-bg:#064e3b;--ok-tx:#a7f3d0}
+[data-theme="light"]{--bg:#f1f5f9;--card:#ffffff;--card2:#f8fafc;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--input:#ffffff;--accent1:#4f46e5;--accent2:#0891b2;--accent-txt:#fff;--danger-bg:#fee2e2;--danger-tx:#991b1b;--ok-bg:#d1fae5;--ok-tx:#065f46}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,sans-serif;background:var(--bg);color:var(--text)}
+a{color:var(--accent2);text-decoration:none}
+.top{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px}
+.badge{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--accent-txt)}
+.top h1{font-size:17px;margin:0}.top small{color:var(--muted)}
 .top .sp{flex:1}
-.btn{border:1px solid #24365c;background:#111c33;color:#e6edf7;padding:9px 14px;border-radius:11px;cursor:pointer;font-family:inherit;font-size:13px}
-.btn.primary{background:linear-gradient(135deg,#10b981,#0ea5e9);color:#04121a;border:0;font-weight:800}
-.btn.danger{background:#3b1420;border-color:#7f1d2d;color:#fda4af}
+.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 14px;border-radius:11px;cursor:pointer;font-family:inherit;font-size:13px}
+.btn.primary{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:var(--accent-txt);border:0;font-weight:800}
+.btn.danger{background:var(--danger-bg);border-color:var(--border);color:var(--danger-tx)}
 .btn.sm{padding:6px 10px;font-size:12px;border-radius:9px}
+.theme-btn{padding:8px 12px;border-radius:999px;font-size:16px}
 .wrap{max-width:1180px;margin:0 auto;padding:16px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
-.tab{padding:9px 16px;border-radius:999px;border:1px solid #24365c;background:#111c33;cursor:pointer;font-size:13px}
-.tab.on{background:linear-gradient(135deg,#10b981,#0ea5e9);color:#04121a;font-weight:800;border:0}
+.tab{padding:9px 16px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:13px}
+.tab.on{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:var(--accent-txt);font-weight:800;border:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
-.card{background:linear-gradient(160deg,#111c33,#0d1526);border:1px solid #1e2d4d;border-radius:16px;padding:16px}
-.card h3{margin:0 0 6px;font-size:13px;color:#8ea0bd;font-weight:400}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+.card h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:400}
 .big{font-size:22px;font-weight:900}
-.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;background:#0f2a1f;color:#6ee7b7;border:1px solid #14532d}
-.pill.off{background:#3b1420;color:#fda4af;border-color:#7f1d2d}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;background:var(--ok-bg);color:var(--ok-tx);border:1px solid var(--border)}
+.pill.off{background:var(--danger-bg);color:var(--danger-tx)}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:10px 8px;border-bottom:1px solid #1e2d4d;text-align:right;vertical-align:top}
-th{color:#8ea0bd;font-weight:400}
-.bar{height:8px;background:#0a1120;border-radius:99px;overflow:hidden;margin-top:6px}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,#10b981,#0ea5e9)}
+th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:right;vertical-align:top}
+th{color:var(--muted);font-weight:400}
+.bar{height:8px;background:var(--input);border-radius:99px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent1),var(--accent2))}
 .mono{font-family:Consolas,monospace;direction:ltr;text-align:left;word-break:break-all}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
 .modal.open{display:flex}
-.box{width:100%;max-width:520px;background:#0d1526;border:1px solid #24365c;border-radius:18px;padding:20px;max-height:90vh;overflow:auto}
+.box{width:100%;max-width:520px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;max-height:90vh;overflow:auto}
 .box h2{margin:0 0 12px;font-size:16px}
-label{display:block;font-size:13px;color:#aebdd6;margin:12px 0 6px}
-input,select,textarea{width:100%;padding:11px;border-radius:11px;border:1px solid #24365c;background:#0a1120;color:#fff;font-family:inherit;font-size:13px}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px}
+input,select,textarea{width:100%;padding:11px;border-radius:11px;border:1px solid var(--border);background:var(--input);color:var(--text);font-family:inherit;font-size:13px}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0f2a1f;border:1px solid #14532d;color:#a7f3d0;padding:11px 18px;border-radius:12px;display:none;z-index:30;font-size:13px}
-pre{background:#070d18;border:1px solid #1e2d4d;border-radius:12px;padding:12px;overflow:auto;font-size:12px;direction:ltr;text-align:left;max-height:420px}
-.hint{color:#8ea0bd;font-size:12px;line-height:1.9}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ok-bg);border:1px solid var(--border);color:var(--ok-tx);padding:11px 18px;border-radius:12px;display:none;z-index:30;font-size:13px}
+pre{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:auto;font-size:12px;direction:ltr;text-align:left;max-height:420px}
+.hint{color:var(--muted);font-size:12px;line-height:1.9}
 @media(max-width:640px){table{font-size:12px}th,td{padding:8px 5px}}
 </style></head><body>
-<div class="top"><div class="badge">S</div><div><h1>Sirgsm VPN Panel</h1><small>nhv.3tayesh.ir — VLESS • Trojan • Shadowsocks • VMess</small></div>
+<div class="top"><div class="badge">S</div><div><h1>Sirgsm VPN Panel</h1><small>nhv.3tayesh.ir — VLESS • Trojan • Shadowsocks • VMess</small></div><div class="sp"></div><button class="btn theme-btn" id="themeBtn" onclick="toggleTheme()">☀️</button>
 <div class="sp"></div><button class="btn sm" onclick="refreshAll()">↻ تازه‌سازی</button>
 <a class="btn sm" href="/{{ secret }}/logout">خروج</a></div>
 <div class="wrap">
@@ -2189,17 +2284,20 @@ pre{background:#070d18;border:1px solid #1e2d4d;border-radius:12px;padding:12px;
 <div class="row"><button class="btn primary" onclick="applyUpdate()" id="updBtn" style="display:none">آپدیت به نسخه جدید</button></div></div>
 <div class="card"><h3 style="margin-top:0">درباره</h3>
 <p class="hint">Sirgsm VPN Panel v<span id="aboutVer"></span> — ساخته‌شده از صفر (بدون ریپوی آماده).<br>
-Sponsor: Sirgsm.ir — Navid Haghbayan<br>
+Sirgsm.ir<br>
 SIP Gateway (Asterisk) فقط نمایش داده می‌شه و مدیریت نمی‌شه.<br>
 آدرس پنل: <span class="mono" id="panelAddr"></span></p></div>
 </div></section>
 </div>
 
-<p style="text-align:center;color:#8ea0bd;font-size:12px;margin:24px 0 8px">Sirgsm VPN Panel — Sponsor: <a href="https://sirgsm.ir" target="_blank">Sirgsm.ir</a> — Navid Haghbayan</p>
+<p style="text-align:center;color:#8ea0bd;font-size:12px;margin:24px 0 8px">Sirgsm VPN Panel — <a href="https://sirgsm.ir" target="_blank">Sirgsm.ir</a></p>
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
+try{var th=localStorage.getItem('sirgsm-theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}
+function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',c);try{localStorage.setItem('sirgsm-theme',c);}catch(e){}var b=document.getElementById('themeBtn');if(b)b.textContent=c==='light'?'🌙':'☀️';}
+try{if(document.documentElement.getAttribute('data-theme')==='light')document.getElementById('themeBtn').textContent='🌙';}catch(e){}
 const S = "{{ secret }}";
 const base = "/" + S;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2600);}
