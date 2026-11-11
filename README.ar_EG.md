@@ -74,19 +74,19 @@
 ## البدء السريع
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh)
 ```
 
 لتثبيت إصدار محدد، أضِف وسمه (مثل `v3.7.0`):
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) v3.7.0
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) v3.5.0
 ```
 
 لتثبيت بنية **dev** المتجددة (أحدث إصدار أولي لكل التزام (commit) من `main`، وليس إصدارًا مستقرًا)، مرّر `dev-latest`:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) dev-latest
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) dev-latest
 ```
 
 أثناء التثبيت، يتم إنشاء اسم مستخدم وكلمة مرور ومسار وصول عشوائية. بعد التثبيت، شغّل `x-ui` لفتح قائمة الإدارة، حيث يمكنك بدء/إيقاف الخدمة، وعرض أو إعادة تعيين بيانات تسجيل الدخول، وإدارة شهادات SSL، والمزيد.
@@ -205,17 +205,9 @@ English · فارسی · العربية · 中文（简体） · 中文（繁體
 
 **إذا كان هذا المشروع مفيدًا لك، فقد ترغب في إعطائه**:star2:
 
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
-</a>
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
-</a>
-
 ## سجل النجوم
 
-<a href="https://www.star-history.com/?repos=mhsanaei%2FSirgsm VPN&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&theme=dark&legend=top-left" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left" />

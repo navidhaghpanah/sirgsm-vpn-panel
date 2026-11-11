@@ -11,7 +11,7 @@ export interface InstallOptions {
   webBasePath: string;
 }
 
-const REPO_RAW = 'https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh';
+const REPO_RAW = 'https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh';
 const IMAGE = 'ghcr.io/navidhaghpanah/sirgsm-vpn-panel:latest';
 
 function isLatest(version: string): boolean {

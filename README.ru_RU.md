@@ -74,19 +74,19 @@
 ## Быстрый старт
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh)
 ```
 
 Чтобы установить конкретную версию, добавьте её тег (например, `v3.7.0`):
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) v3.7.0
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) v3.5.0
 ```
 
 Чтобы установить скользящую **dev**-сборку (новейший предварительный релиз по каждому коммиту из ветки `main`, а не стабильный релиз), передайте `dev-latest`:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) dev-latest
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) dev-latest
 ```
 
 Во время установки генерируются случайные имя пользователя, пароль и путь доступа. После установки выполните `x-ui`, чтобы открыть меню управления, где можно запускать/останавливать сервис, просматривать или сбрасывать учётные данные для входа, управлять SSL-сертификатами и многое другое.
@@ -205,18 +205,9 @@ English · فارسی · العربية · 中文（简体） · 中文（繁體
 
 **Если этот проект полезен для вас, вы можете поставить ему**:star2:
 
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
-</a>
-
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
-</a>
-
 ## История звёзд
 
-<a href="https://www.star-history.com/?repos=mhsanaei%2FSirgsm VPN&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&theme=dark&legend=top-left" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left" />

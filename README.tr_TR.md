@@ -74,19 +74,19 @@ Orijinal X-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa e
 ## Hızlı Başlangıç
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh)
 ```
 
 Belirli bir sürümü kurmak için, etiketini (ör. `v3.7.0`) ekleyin:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) v3.7.0
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) v3.5.0
 ```
 
 Sürekli güncellenen **dev** sürümünü (kararlı bir sürüm değil; `main` dalından her commit'te oluşturulan en son ön sürüm) kurmak için `dev-latest` değerini geçirin:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) dev-latest
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) dev-latest
 ```
 
 Kurulum sırasında rastgele bir kullanıcı adı, şifre ve erişim yolu oluşturulur. Kurulumdan sonra, hizmeti başlatabileceğiniz/durdurabileceğiniz, giriş bilgilerinizi görüntüleyebileceğiniz veya sıfırlayabileceğiniz, SSL sertifikalarını yönetebileceğiniz ve çok daha fazlasını yapabileceğiniz yönetim menüsünü açmak için terminalde `x-ui` komutunu çalıştırın.
@@ -205,18 +205,9 @@ Sirgsm VPN çevresindeki topluluk tarafından oluşturulmuş araçlar ve entegra
 
 **Eğer bu proje size faydalı olduysa, bir yıldız verebilirsiniz**:star2:
 
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Bana Bir Kahve Ismarla" style="height: 70px !important;width: 277px !important;" >
-</a>
-
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="NOWPayments üzerinden Kripto Bağış Butonu">
-</a>
-
 ## Yıldız Geçmişi
 
-<a href="https://www.star-history.com/?repos=mhsanaei%2FSirgsm VPN&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&theme=dark&legend=top-left" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left" />

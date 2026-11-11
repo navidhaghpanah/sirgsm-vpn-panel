@@ -17,21 +17,21 @@ const base: InstallOptions = {
 describe('buildScriptCommand', () => {
   it('uses the master install.sh for the latest version', () => {
     expect(buildScriptCommand(base)).toBe(
-      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh)',
+      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh)',
     );
   });
 
   it('pins a specific version by passing the tag to master install.sh', () => {
     const cmd = buildScriptCommand({ ...base, version: 'v3.4.1' });
     expect(cmd).toBe(
-      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) v3.4.1',
+      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) v3.5.0',
     );
   });
 
   it('supports the rolling dev-latest build', () => {
     const cmd = buildScriptCommand({ ...base, version: 'dev-latest' });
     expect(cmd).toBe(
-      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) dev-latest',
+      'bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh) dev-latest',
     );
   });
 });
