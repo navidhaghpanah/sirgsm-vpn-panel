@@ -1,85 +1,233 @@
-# Sirgsm VPN Panel
+# Sirgsm VPN
 
-Custom VPN management panel built from scratch (Flask + SQLite + Xray-core).
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md) | [Türkçe](/README.tr_TR.md)
 
-**Sirgsm.ir**
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./media/sirgsm-vpn-logo-dark.png">
+    <img alt="Sirgsm VPN" src="./media/sirgsm-vpn-logo-light.png">
+  </picture>
+</p>
 
-**English** | [فارسی](README.fa.md)
+<p align="center">
+  <a href="https://github.com/navidhaghpanah/sirgsm-vpn-panel/releases"><img src="https://img.shields.io/github/v/release/navidhaghpanah/sirgsm-vpn-panel" alt="Release"></a>
+  <a href="https://github.com/navidhaghpanah/sirgsm-vpn-panel/actions"><img src="https://img.shields.io/github/actions/workflow/status/navidhaghpanah/sirgsm-vpn-panel/release.yml.svg" alt="Build"></a>
+  <a href="#"><img src="https://img.shields.io/github/go-mod/go-version/navidhaghpanah/sirgsm-vpn-panel.svg" alt="GO Version"></a>
+  <a href="https://github.com/navidhaghpanah/sirgsm-vpn-panel/releases/latest"><img src="https://img.shields.io/github/downloads/navidhaghpanah/sirgsm-vpn-panel/total.svg" alt="Downloads"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"><img src="https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true" alt="License"></a>
+  <a href="https://pkg.go.dev/github.com/navidhaghpanah/sirgsm-vpn-panel/v3"><img src="https://pkg.go.dev/badge/github.com/navidhaghpanah/sirgsm-vpn-panel/v3.svg" alt="Go Reference"></a>
+  <a href="https://docs.sanaei.dev"><img src="https://img.shields.io/badge/docs-docs.sanaei.dev-22d3ee" alt="Documentation"></a>
+</p>
+
+**Sirgsm VPN** is an advanced, open-source web control panel for managing [Xray-core](https://github.com/XTLS/Xray-core) servers. It provides a clean, multi-language interface for deploying, configuring, and monitoring a wide range of proxy and VPN protocols — from a single VPS to multi-node deployments.
+
+Built as an enhanced fork of the original X-UI project, Sirgsm VPN adds broader protocol support, improved stability, per-client traffic accounting, and many quality-of-life features.
+
+> [!IMPORTANT]
+> This project is intended for personal use only. Please do not use it for illegal purposes or in a production environment.
 
 ## Features
 
-- **4 protocols**: VLESS, Trojan, Shadowsocks 2022, VMess
-- **Transports per inbound** (most-used types, switchable in Settings):
-  - VLESS: Reality+TCP, Reality+gRPC, TLS+WebSocket, TLS+gRPC, TLS+TCP, TCP, WebSocket
-  - Trojan: Reality+TCP, TLS+WebSocket, TLS+gRPC, TLS+TCP, TCP
-  - VMess: Reality+TCP, TLS+WebSocket, TLS+gRPC, TCP, WebSocket
-  - Shadowsocks: TCP/UDP (2022-blake3-aes-128-gcm)
-- **User management**: expiry (days) + traffic limit (GB) + concurrent IP limit, online users, bulk actions
-- **QR code** for links & subscription
-- **Subscription landing page**: opening the sub link in a browser shows account details (usage, expiry, links, QR); proxy clients get plain-text links automatically (`/sub/<token>/raw` forces raw)
-- **Server status**: CPU load, RAM, disk, uptime, network RX/TX totals + rates, per-interface stats, VPN traffic totals
-- **Warp outbound** (Cloudflare WARP via WireGuard) for YouTube / Google / OpenAI / Telegram + routing rules with presets
-- **L2TP / IKEv2 (IPsec)**: PSK + per-user PPP accounts, managed from Settings
-- **SSL**: one-click Let's Encrypt for the panel domain (Settings > SSL)
-- **Telegram bot** (`bot.py`): `/add /list /links /status /l2tp /version /del /reset /enable /disable` — token & admin ID are set in Panel Settings
-- **Backup/Restore**: DB download, restore (auto-backup before), auto-backup every 24h to the bot
-- **User migration**: JSON export/import (Sirgsm + Marzban formats) preserving duration & volume
-- **Settings in panel**: domain, port, password, bot, SSL, transports, landing page, L2TP, update repo
-- **Update**: check GitHub for new releases and update in one click (Settings > Update)
-- **Persian RTL UI**, secret URL path, SIP Gateway (Asterisk) monitoring only (never touched)
+- **Multi-protocol inbounds** — VLESS, VMess, Trojan, Shadowsocks, WireGuard, AmneziaWG, TUIC v5, Hysteria2, MTProto, HTTP, SOCKS (Mixed), Dokodemo-door / Tunnel, and TUN.
+- **Modern transports & security** — TCP (Raw), mKCP, WebSocket, gRPC, HTTPUpgrade, and XHTTP, secured with TLS, XTLS, and REALITY.
+- **AmneziaWG built in** — DPI-resistant WireGuard runs inside the panel on a userspace network stack, with no kernel module, DKMS, or extra packages to install.
+- **Native TUIC v5 server** — In-process Go QUIC server with Xray routing and per-client traffic accounting; BBR and New Reno are available server-side. CUBIC is preserved in the client profile but currently falls back to New Reno on the server.
+- **MTProto proxies** — per-client FakeTLS secrets, ad-tags, and quotas, applied live without dropping existing connections.
+- **Fallbacks** — serve multiple protocols on a single port (e.g. VLESS and Trojan on 443) using Xray's fallback support.
+- **Per-client management** — traffic quotas, expiry dates, IP limits with trusted-address exemptions, HWID device limits, scheduled renewal cycles, live online status, and one-click share links, QR codes, and subscriptions.
+- **Traffic statistics** — per inbound, per client, and per outbound, with reset controls.
+- **Multi-node support** — manage and scale across multiple servers from a single panel, including cloning inbounds onto other nodes.
+- **Outbound & routing** — WARP, NordVPN, PIA, custom routing rules, load balancers with balancer-to-balancer fallback, and outbound proxy chaining. Bundled geosite and geoip categories are browsable straight from the rule editor.
+- **Built-in subscription server** — raw, JSON, and Clash output, auto-selected from the client's User-Agent, plus [custom page templates](docs/custom-subscription-templates.md).
+- **Telegram and Discord bots** for remote monitoring and management.
+- **RESTful API** with scoped, optionally expiring tokens and an in-panel API reference.
+- **Installable panel (PWA)** — pin Sirgsm VPN to a desktop or phone home screen.
+- **Flexible storage** — SQLite (default) or PostgreSQL.
+- **14 UI languages** with dark and light themes.
+- **Fail2ban integration** for enforcing per-client IP limits.
 
-## Install (one line)
+## Screenshots
+
+<details>
+<summary>Click to expand</summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./media/01-overview-dark.png">
+  <img alt="Overview" src="./media/01-overview-light.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./media/02-add-inbound-dark.png">
+  <img alt="Inbounds" src="./media/02-add-inbound-light.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./media/03-add-client-dark.png">
+  <img alt="Add client" src="./media/03-add-client-light.png">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./media/05-add-nodes-dark.png">
+  <img alt="Configs" src="./media/05-add-nodes-light.png">
+</picture>
+
+</details>
+
+## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/main/install.sh | bash
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh)
 ```
 
-Or from a local clone:
+To install a specific version, append its tag (e.g. `v3.7.0`):
 
 ```bash
-git clone https://github.com/navidhaghpanah/sirgsm-vpn-panel.git && cd sirgsm-vpn-panel
-sudo bash install.sh
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) v3.7.0
 ```
 
-The installer automatically installs **all requirements** (Python, Flask, qrcode, nginx, certbot, strongswan, xl2tpd, wireguard-tools), copies files, creates services, opens firewall ports, and gets **SSL** for the panel domain (set `SSL_EMAIL` + `DOMAIN` env vars, or get it later from Panel > Settings > SSL).
+To install the rolling **dev** build (latest per-commit pre-release from `main`, not a stable release), pass `dev-latest`:
 
-Panel: `http://YOUR_DOMAIN:2053/YOUR_SECRET_PATH/` — login `admin` / generated password (saved to `/root/sirgsm-panel.txt`).
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/navidhaghpanah/sirgsm-vpn-panel/master/install.sh) dev-latest
+```
 
-## Warp setup
+During installation a random username, password, and access path are generated. After installation, run `x-ui` to open the management menu, where you can start/stop the service, view or reset your login credentials, manage SSL certificates, and more.
 
-Register a free Cloudflare WARP account (e.g. via `wgcf`), then place:
+Every release asset is published with a `.sha256` sum next to it. Both `install.sh` and the updater verify the archive against that sum and abort on a mismatch.
 
-- `/opt/sirgsm-panel/warp/account.toml`
-- `/opt/sirgsm-panel/warp/profile.conf`
-- `/opt/sirgsm-panel/warp/warp.json` — `{"reserved": [..]}` from the API `client_id`
+For full documentation — installation, configuration, operations, and the complete API reference — visit **[docs.sanaei.dev](https://docs.sanaei.dev)**.
 
-The panel auto-loads Warp outbound and seeds routing rules for YouTube/Google/OpenAI/Telegram.
+### Unattended install
 
-## Telegram bot
+The installer also runs **non-interactively** for cloud-init.
+Set `XUI_NONINTERACTIVE=1` (or pipe with no TTY) and it installs end-to-end with
+zero prompts, generating random credentials and writing them to
+`/etc/x-ui/install-result.env`. See [`deploy/`](deploy/) for:
 
-Set the token in **Panel > Settings > Telegram Bot** (from [@BotFather](https://t.me/BotFather)) and your numeric ID (from [@userinfobot](https://t.me/userinfobot)), then `systemctl restart sirgsm-bot`. Only the admin ID can use the bot.
+- [Cloud-init user-data](deploy/cloud-init/) — unattended install on any cloud (Hetzner/AWS/DO/Vultr/GCP/Azure/Oracle)
+- [Hetzner Cloud notes](deploy/marketplace/hetzner/) — cloud-init deployment on Hetzner
 
-## Landing page (template)
+## Supported Platforms
 
-The sub landing page is a customizable template. In **Panel > Settings > Landing Page** you can change title, subtitle, footer, or paste a full custom HTML template. Placeholders: `{title} {subtitle} {footer} {email} {protocol} {used} {limit} {pct} {expiry} {ip_limit} {online} {status_fa} {status_cls} {links_html} {sub} {qr_link} {qr_sub}`.
+**Operating systems:** Ubuntu, Debian, Armbian, Fedora, CentOS, RHEL, AlmaLinux, Rocky Linux, Oracle Linux, Amazon Linux, Virtuozzo, Arch, Manjaro, Parch, openSUSE (Tumbleweed / Leap), Alpine, and Windows.
 
-## L2TP / IKEv2
+**Architectures:** `amd64` · `386` · `arm64` (aarch64) · `armv7` · `armv6` · `armv5` · `s390x`.
 
-In **Panel > Settings > L2TP**: enable, set PSK (secret), add users. Clients connect with L2TP/IPsec (PSK), server = panel domain, ports UDP 500/4500/1701.
+## Database Options
 
-## Update
+Sirgsm VPN supports two backends, chosen during the install:
 
-In **Panel > Settings > Update**: set the GitHub repo (`owner/repo`), check for new releases, update in one click. The updater downloads the release zip and restarts panel + bot.
+- **SQLite** (default) — a single file at `/etc/x-ui/x-ui.db`. Zero setup, ideal for small and medium deployments.
+- **PostgreSQL** — recommended for high client counts or multi-node setups. The installer can install PostgreSQL locally for you, or accept a DSN to an existing server.
 
-## Security notes
+At runtime the backend is selected via environment variables (the installer writes these to `/etc/default/x-ui` for you):
 
-- Change `SIRGSM_SECRET_PATH` and `SIRGSM_ADMIN_PASS` before going live.
-- Never commit real secrets (`.env`, `*.db`, `warp/`, `vpn-secrets*`) — see `.gitignore`.
-- The panel never manages Asterisk/SIP — it only displays its status.
+```
+XUI_DB_TYPE=postgres
+XUI_DB_DSN=postgres://xui:password@127.0.0.1:5432/xui?sslmode=disable
+```
 
-## License
+### Migrating an existing SQLite install to PostgreSQL
 
-MIT — see `LICENSE`.
+```bash
+x-ui migrate-db --dsn "postgres://xui:password@127.0.0.1:5432/xui?sslmode=disable"
+# then set XUI_DB_TYPE and XUI_DB_DSN in /etc/default/x-ui and restart:
+systemctl restart x-ui
+```
 
----
-**Sirgsm.ir**
+The source SQLite file is left untouched; remove it manually once you have verified the new backend.
+
+### Docker
+
+The default `docker compose up -d` keeps using SQLite. To run with the bundled PostgreSQL service, uncomment the two `XUI_DB_*` env lines in `docker-compose.yml` and start with the profile:
+
+```bash
+docker compose --profile postgres up -d
+```
+
+The image bundles Fail2ban (enabled by default) to enforce per-client **IP limits**. Fail2ban bans offenders with `iptables`, which requires the `NET_ADMIN` capability. `docker-compose.yml` already grants it via `cap_add`; if you start the container with `docker run` instead, add the capabilities yourself, otherwise bans are logged but never applied:
+
+```bash
+docker run -d --cap-add=NET_ADMIN --cap-add=NET_RAW ... ghcr.io/navidhaghpanah/sirgsm-vpn-panel
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `XUI_DB_TYPE` | Database backend: `sqlite` or `postgres` | `sqlite` |
+| `XUI_DB_DSN` | PostgreSQL connection string (when `XUI_DB_TYPE=postgres`) | — |
+| `XUI_DB_FOLDER` | Directory for the SQLite database file | `/etc/x-ui` |
+| `XUI_DB_MAX_OPEN_CONNS` | Maximum open connections (PostgreSQL pool) | — |
+| `XUI_DB_MAX_IDLE_CONNS` | Maximum idle connections (PostgreSQL pool) | — |
+| `XUI_INIT_WEB_BASE_PATH` | The initial URI path for the web panel | `/` |
+| `XUI_ENABLE_FAIL2BAN` | Enable Fail2ban-based IP-limit enforcement | `true` |
+| `XUI_LOG_LEVEL` | Log verbosity (`debug`, `info`, `warning`, `error`) | `info` |
+| `XUI_DEBUG` | Enable debug mode | `false` |
+| `XUI_TUNNEL_HEALTH_MONITOR` | Enable the tunnel health monitor (probes a URL and restarts xray after repeated failures; a restart drops all clients) | `false` |
+| `XUI_TUNNEL_HEALTH_PROXY` | Proxy the probe is sent through; point it at a local xray inbound so the probe tests the tunnel (e.g. `socks5://127.0.0.1:1080`). Empty means the probe only checks host connectivity | — |
+| `XUI_TUNNEL_HEALTH_URL` | URL probed for tunnel health | `https://www.cloudflare.com/cdn-cgi/trace` |
+| `XUI_TUNNEL_HEALTH_INTERVAL` | Interval between probes | `30s` |
+| `XUI_TUNNEL_HEALTH_TIMEOUT` | Per-probe timeout | `10s` |
+| `XUI_TUNNEL_HEALTH_FAILURES` | Consecutive failures before a restart is triggered | `3` |
+| `XUI_TUNNEL_HEALTH_COOLDOWN` | Minimum delay between consecutive restarts | `5m` |
+| `NODE_TOKEN_ENCRYPTION` | Encryption at rest for node API tokens: `off`, `migration`, or `required` (note: no `XUI_` prefix) | `off` |
+| `XUI_NODE_TOKEN_KEY_FILE` | JSON keyring (mode `0600`) holding the active key id and its base64 32-byte keys | `/etc/x-ui/node_token_key.json` |
+| `XUI_NODE_TOKEN_KEY` | A single base64 32-byte key, used only when the key file cannot be loaded | — |
+
+The complete list is on the [environment variables reference](https://docs.sanaei.dev/docs/reference/env-vars).
+
+## Supported Languages
+
+The panel UI is available in 14 languages:
+
+English · فارسی · العربية · 中文（简体） · 中文（繁體） · Español · Русский · Українська · Türkçe · Tiếng Việt · 日本語 · Bahasa Indonesia · Português (Brasil) · Slovenčina
+
+## Contributing
+
+Contributions are welcome. Please read the [Contributing Guide](/CONTRIBUTING.md) before opening an issue or pull request.
+
+## A Special Thanks to
+
+- [alireza0](https://github.com/alireza0/)
+
+## Acknowledgment
+
+- [Iran v2ray rules](https://github.com/chocolate4u/Iran-v2ray-rules) (License: **GPL-3.0**): _Enhanced v2ray/xray and v2ray/xray-clients routing rules with built-in Iranian domains and a focus on security and adblocking._
+- [Russia v2ray rules](https://github.com/runetfreedom/russia-v2ray-rules-dat) (License: **GPL-3.0**): _This repository contains automatically updated V2Ray routing rules based on data on blocked domains and addresses in Russia._
+
+## Community Tools
+
+Tools and integrations built by the community around Sirgsm VPN.
+
+- [terraform-provider-3x-ui](https://github.com/batonogov/terraform-provider-threexui) (License: **MIT**): _Manage inbounds, clients, panel settings, and Xray configuration as code with Terraform / OpenTofu._
+- [Sirgsm VPN Manager](https://github.com/yukh975/Sirgsm VPN-Manager) (License: **MIT**): _Native Android client for Sirgsm VPN — dashboard, inbounds, clients with QR sharing, nodes and multi-panel management. Available on F-Droid._
+
+## Support project
+
+**If this project is helpful to you, you may wish to give it a**:star2:
+
+<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
+<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
+</a>
+
+</br>
+<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
+   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
+</a>
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=mhsanaei%2FSirgsm VPN&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=navidhaghpanah/sirgsm-vpn-panel&type=date&legend=top-left" />
+ </picture>
+</a>
+
+<p align="center">
+ <a href="https://www.star-history.com/navidhaghpanah/sirgsm-vpn-panel">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=rank&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=rank" /><img alt="Star History Rank" src="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=rank" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=trending&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=trending" /><img alt="GitHub Trending Repository of the Day" src="https://api.star-history.com/badge?repo=navidhaghpanah/sirgsm-vpn-panel&type=trending" /></picture>
+ </a>
+</p>
