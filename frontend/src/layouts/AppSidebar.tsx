@@ -28,6 +28,7 @@ import {
   TelegramFilled,
 } from '@ant-design/icons';
 
+import { withBasePath } from '@/api/http-init';
 import { HttpUtil } from '@/utils';
 import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
@@ -350,7 +351,7 @@ export default function AppSidebar() {
       >
         <div className="sider-brand">
           <div className="brand-block">
-            <img className="brand-logo" src="/icons/sirgsm-vpn-64.png" alt="" width="30" height="30" aria-hidden="true" />
+            <img className="brand-logo" src={withBasePath('/icons/sirgsm-vpn-64.png')} alt="" width="30" height="30" aria-hidden="true" />
             <span className="brand-text">{railCollapsed ? 'SV' : 'Sirgsm VPN'}</span>
           </div>
           {!railCollapsed && (
@@ -438,7 +439,7 @@ export default function AppSidebar() {
       >
         <div className="drawer-header">
           <div className="brand-block">
-            <img className="brand-logo" src="/icons/sirgsm-vpn-64.png" alt="" width="30" height="30" aria-hidden="true" />
+            <img className="brand-logo" src={withBasePath('/icons/sirgsm-vpn-64.png')} alt="" width="30" height="30" aria-hidden="true" />
             <span className="drawer-brand">Sirgsm VPN</span>
           </div>
           <div className="drawer-header-actions">

@@ -29,6 +29,7 @@ import { setMessageInstance } from '@/utils/messageBus';
 import SponsorSlot from '@/components/sponsor/SponsorSlot';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import { LoginFormSchema, TwoFactorCodeSchema, type LoginFormValues } from '@/schemas/login';
+import { withBasePath } from '@/api/http-init';
 import './LoginPage.css';
 
 const HEADLINE_INTERVAL_MS = 2000;
@@ -186,7 +187,7 @@ export default function LoginPage() {
             ) : (
               <div className="login-card">
                 <div className="brand">
-                  <img className="brand-logo" src="/icons/sirgsm-vpn-192.png" alt="Sirgsm VPN" width="96" height="96" />
+                  <img className="brand-logo" src={withBasePath('/icons/sirgsm-vpn-192.png')} alt="Sirgsm VPN" width="96" height="96" />
                   <span className="brand-name">Sirgsm VPN</span>
                   <span className="brand-accent" aria-hidden="true" />
                 </div>
